@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"reflect"
@@ -164,7 +165,7 @@ func (q *NetworkQueryer) Query(ctx context.Context, input *QueryInput, receiver 
 	result := map[string]interface{}{}
 	err = json.Unmarshal(body, &result)
 	if err != nil {
-		return err
+		return fmt.Errorf("Response body was not valid json: %s", string(body))
 	}
 
 	// if there is an error
