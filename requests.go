@@ -140,6 +140,7 @@ func (q *NetworkQueryer) Query(ctx context.Context, input *QueryInput, receiver 
 	}
 	// add the current context to the request
 	acc := req.WithContext(ctx)
+	req.Header.Set("Content-Type", "application/json")
 
 	// we could have any number of middlewares that we have to go through so
 	for _, mware := range q.middlewares {
