@@ -40,14 +40,14 @@ func ApplyFragments(selectionSet ast.SelectionSet, fragmentDefs ast.FragmentDefi
 	final := ast.SelectionSet{}
 
 	// look for all of the collected fields
-	CollectedFields, err := collectFields([]ast.SelectionSet{selectionSet}, fragmentDefs)
+	collectedFields, err := collectFields([]ast.SelectionSet{selectionSet}, fragmentDefs)
 	if err != nil {
 		return nil, err
 	}
 
 	// the final result of collecting fields should have a single selection in its selection set
 	// which should be a selection for the same field referenced by collected.Field
-	for _, collected := range *CollectedFields {
+	for _, collected := range *collectedFields {
 		final = append(final, collected.Field)
 	}
 
@@ -133,7 +133,7 @@ func collectFields(sources []ast.SelectionSet, fragments ast.FragmentDefinitionL
 		// if there are selections for the field we need to turn them into a selection set
 		selectionSet := ast.SelectionSet{}
 		for _, selection := range *merged {
-			selectionSet = append(selectionSet, selection)
+			selectionSet = append(selectionSet, selection.Field)
 		}
 
 		// save this selection set over the nested one
