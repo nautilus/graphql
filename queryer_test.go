@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -65,6 +66,10 @@ func TestHTTPQueryerBasicCases(t *testing.T) {
 		{
 			"Single Request",
 			NewNetworkQueryer("hello"),
+		},
+		{
+			"MultiOp",
+			NewMultiOpQueryer("hello", 1*time.Millisecond, 10),
 		},
 	}
 
@@ -263,6 +268,11 @@ func TestHTTPQueryerBasicCases(t *testing.T) {
 
 				// get the error of the query
 				err := queryer.Query(context.Background(), &QueryInput{Query: query}, &map[string]interface{}{})
+				// if we didn't get an error at all
+				if err == nil {
+					t.Error("Did not encounter an error")
+					return
+				}
 
 				_, ok := err.(ErrorList)
 				if !ok {
@@ -310,6 +320,10 @@ func TestQueryerWithMiddlewares(t *testing.T) {
 		{
 			"Single Request",
 			NewNetworkQueryer("hello"),
+		},
+		{
+			"MultiOp",
+			NewMultiOpQueryer("hello", 1*time.Millisecond, 10),
 		},
 	}
 
