@@ -34,7 +34,19 @@ type NetworkMiddleware func(*http.Request) error
 
 // QueryerWithMiddlewares is an interface for queryers that support network middlewares
 type QueryerWithMiddlewares interface {
-	WithMiddlewares(mwares []NetworkMiddleware) Queryer
+	WithMiddlewares(wares []NetworkMiddleware) Queryer
+}
+
+// HTTPQueryer is an interface for queryers that let you configure an underlying http.Client
+type HTTPQueryer interface {
+	WithHTTPClient(client *http.Client) Queryer
+}
+
+// HTTPQueryerWithMiddlewares is an interface for queryers that let you configure an underlying http.Client
+// and accept middlewares
+type HTTPQueryerWithMiddlewares interface {
+	WithHTTPClient(client *http.Client) Queryer
+	WithMiddlewares(wares []NetworkMiddleware) Queryer
 }
 
 // Provided Implementations
@@ -69,39 +81,4 @@ func (q QueryerFunc) Query(ctx context.Context, input *QueryInput, receiver inte
 
 	// no errors
 	return nil
-}
-
-// IntrospectRemoteSchema is used to build a RemoteSchema by firing the introspection query
-// at a remote service and reconstructing the schema object from the response
-func IntrospectRemoteSchema(url string) (*RemoteSchema, error) {
-	// introspect the schema at the designated url
-	schema, err := IntrospectAPI(NewNetworkQueryer(url))
-	if err != nil {
-		return nil, err
-	}
-
-	return &RemoteSchema{
-		URL:    url,
-		Schema: schema,
-	}, nil
-}
-
-// IntrospectRemoteSchemas takes a list of URLs and creates a RemoteSchema by invoking
-// graphql.IntrospectRemoteSchema at that location.
-func IntrospectRemoteSchemas(urls ...string) ([]*RemoteSchema, error) {
-	// build up the list of remote schemas
-	schemas := []*RemoteSchema{}
-
-	for _, service := range urls {
-		// introspect the locations
-		schema, err := IntrospectRemoteSchema(service)
-		if err != nil {
-			return nil, err
-		}
-
-		// add the schema to the list
-		schemas = append(schemas, schema)
-	}
-
-	return schemas, nil
 }

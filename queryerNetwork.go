@@ -15,25 +15,31 @@ import (
 // NetworkQueryer sends the query to a url and returns the response
 type NetworkQueryer struct {
 	URL         string
-	Client      *http.Client
+	client      *http.Client
 	middlewares []NetworkMiddleware
 }
 
 // NewNetworkQueryer returns a NetworkQueryer pointed to the given url
 func NewNetworkQueryer(url string) *NetworkQueryer {
 	return &NetworkQueryer{
-		URL:    url,
-		Client: &http.Client{},
+		URL: url,
 	}
 }
 
 // WithMiddlewares returns a network queryer that will apply the provided middlewares
 func (q *NetworkQueryer) WithMiddlewares(mwares []NetworkMiddleware) Queryer {
-	return &NetworkQueryer{
-		URL:         q.URL,
-		Client:      q.Client,
-		middlewares: mwares,
-	}
+	// for now just change the internal reference
+	q.middlewares = mwares
+
+	// return it
+	return q
+}
+
+// WithHTTPClient lets the user configure the underlying http client being used
+func (q *NetworkQueryer) WithHTTPClient(client *http.Client) Queryer {
+	q.client = client
+
+	return q
 }
 
 // Query sends the query to the designated url and returns the response.
@@ -66,7 +72,7 @@ func (q *NetworkQueryer) Query(ctx context.Context, input *QueryInput, receiver 
 	}
 
 	// fire the response to the queryer's url
-	resp, err := q.Client.Do(req)
+	resp, err := q.client.Do(req)
 	if err != nil {
 		return err
 	}
