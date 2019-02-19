@@ -19,9 +19,13 @@ type NetworkQueryer struct {
 	middlewares []NetworkMiddleware
 }
 
-// NetworkMiddleware are functions can be passed to NetworkQueryer.WithMiddleware to affect its internal
-// behavior
-type NetworkMiddleware func(*http.Request) error
+// NewNetworkQueryer returns a NetworkQueryer pointed to the given url
+func NewNetworkQueryer(url string) *NetworkQueryer {
+	return &NetworkQueryer{
+		URL:    url,
+		Client: &http.Client{},
+	}
+}
 
 // WithMiddlewares returns a network queryer that will apply the provided middlewares
 func (q *NetworkQueryer) WithMiddlewares(mwares []NetworkMiddleware) Queryer {
@@ -125,12 +129,4 @@ func (q *NetworkQueryer) Query(ctx context.Context, input *QueryInput, receiver 
 
 	// pass the result along
 	return nil
-}
-
-// NewNetworkQueryer returns a NetworkQueryer pointed to the given url
-func NewNetworkQueryer(url string) *NetworkQueryer {
-	return &NetworkQueryer{
-		URL:    url,
-		Client: &http.Client{},
-	}
 }

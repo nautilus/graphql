@@ -2,6 +2,7 @@ package graphql
 
 import (
 	"context"
+	"net/http"
 	"reflect"
 
 	"github.com/vektah/gqlparser/ast"
@@ -26,6 +27,10 @@ type QueryInput struct {
 type Queryer interface {
 	Query(context.Context, *QueryInput, interface{}) error
 }
+
+// NetworkMiddleware are functions can be passed to NetworkQueryer.WithMiddleware to affect its internal
+// behavior
+type NetworkMiddleware func(*http.Request) error
 
 // QueryerWithMiddlewares is an interface for queryers that support network middlewares
 type QueryerWithMiddlewares interface {
