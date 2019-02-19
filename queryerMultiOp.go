@@ -65,7 +65,7 @@ func (q *MultiOpQueryer) Query(ctx context.Context, input *QueryInput, receiver 
 	}
 	// add the current context to the request
 	acc := req.WithContext(ctx)
-	req.Header.Set("Content-Type", "application/json")
+	acc.Header.Set("Content-Type", "application/json")
 
 	// we could have any number of middlewares that we have to go through so
 	for _, mware := range q.middlewares {
@@ -76,7 +76,7 @@ func (q *MultiOpQueryer) Query(ctx context.Context, input *QueryInput, receiver 
 	}
 
 	// fire the response to the queryer's url
-	resp, err := q.client.Do(req)
+	resp, err := q.client.Do(acc)
 	if err != nil {
 		return err
 	}
