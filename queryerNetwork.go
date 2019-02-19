@@ -23,7 +23,8 @@ type NetworkQueryer struct {
 // behavior
 type NetworkMiddleware func(*http.Request) error
 
-func (q *NetworkQueryer) WithMiddlewares(mwares []NetworkMiddleware) *NetworkQueryer {
+// WithMiddlewares returns a network queryer that will apply the provided middlewares
+func (q *NetworkQueryer) WithMiddlewares(mwares []NetworkMiddleware) Queryer {
 	return &NetworkQueryer{
 		URL:         q.URL,
 		Client:      q.Client,

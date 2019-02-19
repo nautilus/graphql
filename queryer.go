@@ -27,6 +27,13 @@ type Queryer interface {
 	Query(context.Context, *QueryInput, interface{}) error
 }
 
+// QueryerWithMiddlewares is an interface for queryers that support network middlewares
+type QueryerWithMiddlewares interface {
+	WithMiddlewares(mwares []NetworkMiddleware) Queryer
+}
+
+// Provided Implementations
+
 // MockSuccessQueryer responds with pre-defined value when executing a query
 type MockSuccessQueryer struct {
 	Value interface{}

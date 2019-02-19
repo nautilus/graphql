@@ -8,7 +8,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -405,42 +404,4 @@ func TestNetworkQueryer_middlewaresSuccess(t *testing.T) {
 		t.Error(err.Error())
 		return
 	}
-}
-
-func TestMultipleOperationBatchQueryer(t *testing.T) {
-	// create an multiple-operation batch querer with a known batch time that is
-	// short enough to keep testing quick
-
-	// the number of times the client was called
-	nCalled := 0
-
-	// define an http client that will count the number of calls
-	httpClient := &http.Client{
-		Transport: roundTripFunc(func(req *http.Request) *http.Response {
-			// increment the call count
-			nCalled++
-
-			// serialize the json we want to send back
-			result, _ := json.Marshal(map[string]interface{}{
-				"count": nCalled,
-			})
-
-			return &http.Response{
-				StatusCode: 200,
-				// Send response to be tested
-				Body: ioutil.NopCloser(bytes.NewBuffer(result)),
-				// Must be set to non-nil value or it panics
-				Header: make(http.Header),
-			}
-		}),
-	}
-
-	// define our queryer with a known limit
-	queryer := (&MultiOpBatchQueryer{
-		URL:       "Hello",
-		Client:    httpClient,
-		BatchTime: 1 * time.Millisecond,
-	})
-
-	//
 }
