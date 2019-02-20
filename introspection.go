@@ -8,6 +8,41 @@ import (
 	"github.com/vektah/gqlparser/ast"
 )
 
+// IntrospectRemoteSchema is used to build a RemoteSchema by firing the introspection query
+// at a remote service and reconstructing the schema object from the response
+func IntrospectRemoteSchema(url string) (*RemoteSchema, error) {
+	// introspect the schema at the designated url
+	schema, err := IntrospectAPI(NewSingleRequestQueryer(url))
+	if err != nil {
+		return nil, err
+	}
+
+	return &RemoteSchema{
+		URL:    url,
+		Schema: schema,
+	}, nil
+}
+
+// IntrospectRemoteSchemas takes a list of URLs and creates a RemoteSchema by invoking
+// graphql.IntrospectRemoteSchema at that location.
+func IntrospectRemoteSchemas(urls ...string) ([]*RemoteSchema, error) {
+	// build up the list of remote schemas
+	schemas := []*RemoteSchema{}
+
+	for _, service := range urls {
+		// introspect the locations
+		schema, err := IntrospectRemoteSchema(service)
+		if err != nil {
+			return nil, err
+		}
+
+		// add the schema to the list
+		schemas = append(schemas, schema)
+	}
+
+	return schemas, nil
+}
+
 // IntrospectAPI send the introspection query to a Queryer and builds up the
 // schema object described by the result
 func IntrospectAPI(queryer Queryer) (*ast.Schema, error) {
