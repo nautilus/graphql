@@ -3,10 +3,12 @@ package graphql
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"time"
 
 	"github.com/graph-gophers/dataloader"
+	"github.com/mitchellh/mapstructure"
 )
 
 // MultiOpQueryer is a queryer that will batch subsequent query on some interval into a single network request
@@ -59,10 +61,28 @@ func (q *MultiOpQueryer) Query(ctx context.Context, input *QueryInput, receiver 
 		return err
 	}
 
-	// we need to take the result and set the receiver to match (keep errors in mind too - extractErrors)
+	unmarshaled, ok := result.(map[string]interface{})
+	if !ok {
+		return errors.New("Result from dataloader was not an object")
+	}
 
 	// format the result as needed
-	return q.queryer.ExtractErrors(result.(map[string]interface{}))
+	err = q.queryer.ExtractErrors(unmarshaled)
+	if err != nil {
+		return err
+	}
+
+	// assign the result under the data key to the receiver
+	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
+		TagName: "json",
+		Result:  receiver,
+	})
+	if err != nil {
+		return err
+	}
+
+	// the only way for things to go wrong now happen while decoding
+	return decoder.Decode(unmarshaled["data"])
 }
 
 func (q *MultiOpQueryer) loadQuery(ctx context.Context, keys dataloader.Keys) []*dataloader.Result {

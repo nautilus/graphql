@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"testing"
@@ -60,16 +61,19 @@ func TestQueryerFunc_failure(t *testing.T) {
 func TestHTTPQueryerBasicCases(t *testing.T) {
 	// this test run a suite of tests for every queryer in the table
 	queryerTable := []struct {
-		name    string
-		queryer HTTPQueryer
+		name       string
+		queryer    HTTPQueryer
+		wrapInList bool
 	}{
 		{
 			"Single Request",
 			NewSingleRequestQueryer("hello"),
+			false,
 		},
 		{
 			"MultiOp",
 			NewMultiOpQueryer("hello", 1*time.Millisecond, 10),
+			true,
 		},
 	}
 
@@ -88,9 +92,7 @@ func TestHTTPQueryerBasicCases(t *testing.T) {
 
 				// the result we expect back
 				expected := map[string]interface{}{
-					"data": map[string]interface{}{
-						"foo": "bar",
-					},
+					"foo": "bar",
 				}
 
 				// the corresponding query document
@@ -104,8 +106,16 @@ func TestHTTPQueryerBasicCases(t *testing.T) {
 
 				httpQueryer := row.queryer.WithHTTPClient(&http.Client{
 					Transport: roundTripFunc(func(req *http.Request) *http.Response {
+						var result interface{}
+						if row.wrapInList {
+							result = []map[string]interface{}{{"data": expected}}
+						} else {
+							result = map[string]interface{}{"data": expected}
+						}
+
 						// serialize the json we want to send back
-						result, err := json.Marshal(expected)
+						marshaled, err := json.Marshal(result)
+
 						// if something went wrong
 						if err != nil {
 							return &http.Response{
@@ -118,7 +128,7 @@ func TestHTTPQueryerBasicCases(t *testing.T) {
 						return &http.Response{
 							StatusCode: 200,
 							// Send response to be tested
-							Body: ioutil.NopCloser(bytes.NewBuffer(result)),
+							Body: ioutil.NopCloser(bytes.NewBuffer(marshaled)),
 							// Must be set to non-nil value or it panics
 							Header: make(http.Header),
 						}
@@ -138,7 +148,7 @@ func TestHTTPQueryerBasicCases(t *testing.T) {
 				}
 
 				// make sure we got what we expected
-				assert.Equal(t, expected["data"], result)
+				assert.Equal(t, expected, result)
 			})
 
 			t.Run("Handles error response", func(t *testing.T) {
@@ -203,8 +213,13 @@ func TestHTTPQueryerBasicCases(t *testing.T) {
 									response["errors"] = errorRow.ErrorShape
 								}
 
+								var finalResponse interface{} = response
+								if row.wrapInList {
+									finalResponse = []map[string]interface{}{response}
+								}
+
 								// serialize the json we want to send back
-								result, err := json.Marshal(response)
+								result, err := json.Marshal(finalResponse)
 								// if something went wrong
 								if err != nil {
 									return &http.Response{
@@ -251,15 +266,20 @@ func TestHTTPQueryerBasicCases(t *testing.T) {
 
 				queryer := row.queryer.WithHTTPClient(&http.Client{
 					Transport: roundTripFunc(func(req *http.Request) *http.Response {
-						return &http.Response{
-							StatusCode: 200,
-							// Send response to be tested
-							Body: ioutil.NopCloser(bytes.NewBuffer([]byte(`{
+						response := `{
 							"data": null,
 							"errors": [
 								{"message":"hello"}
 							]
-						}`))),
+						}`
+						if row.wrapInList {
+							response = fmt.Sprintf("[%s]", response)
+						}
+
+						return &http.Response{
+							StatusCode: 200,
+							// Send response to be tested
+							Body: ioutil.NopCloser(bytes.NewBuffer([]byte(response))),
 							// Must be set to non-nil value or it panics
 							Header: make(http.Header),
 						}
@@ -314,16 +334,19 @@ func TestHTTPQueryerBasicCases(t *testing.T) {
 
 func TestQueryerWithMiddlewares(t *testing.T) {
 	queryerTable := []struct {
-		name    string
-		queryer HTTPQueryerWithMiddlewares
+		name       string
+		queryer    HTTPQueryerWithMiddlewares
+		wrapInList bool
 	}{
 		{
 			"Single Request",
 			NewSingleRequestQueryer("hello"),
+			false,
 		},
 		{
 			"MultiOp",
 			NewMultiOpQueryer("hello", 1*time.Millisecond, 10),
+			true,
 		},
 	}
 
@@ -382,6 +405,9 @@ func TestQueryerWithMiddlewares(t *testing.T) {
 									"Jinglehymer Schmidt",
 								},
 							})
+							if row.wrapInList {
+								result = []byte(fmt.Sprintf("[%s]", string(result)))
+							}
 
 							return &http.Response{
 								StatusCode: 200,
