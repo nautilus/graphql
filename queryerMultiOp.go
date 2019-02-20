@@ -1,13 +1,10 @@
 package graphql
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
-	"io/ioutil"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/mitchellh/mapstructure"
@@ -20,8 +17,20 @@ type MultiOpQueryer struct {
 	BatchInterval time.Duration
 	URL           string
 
-	client      *http.Client
+	// the http client to use for requests
+	client *http.Client
+	// the list of middlewares to apply to the request object
 	middlewares []NetworkMiddleware
+
+	// some internal attributes to track bundling
+	bundleChan    chan *newOperation
+	bundleLock    *sync.Mutex
+	bundlePending bool
+}
+
+type newOperation struct {
+	Input      *QueryInput
+	ResponseCh chan map[string]interface{}
 }
 
 // NewMultiOpQueryer returns a MultiOpQueryer with the provided paramters
@@ -45,54 +54,32 @@ func (q *MultiOpQueryer) WithHTTPClient(client *http.Client) Queryer {
 	return q
 }
 
-// Query bundles queries that happen Swithin the given interval into a single network request
+// Query bundles queries that happen within the given interval into a single network request
 // whose body is a list of the operation payload.
 func (q *MultiOpQueryer) Query(ctx context.Context, input *QueryInput, receiver interface{}) error {
-	// the payload
-	payload, err := json.Marshal(map[string]interface{}{
-		"query":         input.Query,
-		"variables":     input.Variables,
-		"operationName": input.OperationName,
-	})
-	if err != nil {
-		return err
+	// create a channel where we will get the response
+	responseCh := make(chan map[string]interface{})
+
+	// add this query to the bundle
+	q.bundleChan <- &newOperation{
+		Input:      input,
+		ResponseCh: responseCh,
 	}
 
-	// construct the initial request we will send to the client
-	req, err := http.NewRequest("POST", q.URL, bytes.NewBuffer(payload))
-	if err != nil {
-		return err
-	}
-	// add the current context to the request
-	acc := req.WithContext(ctx)
-	acc.Header.Set("Content-Type", "application/json")
+	// make sure we have access to the lock
+	q.bundleLock.Lock()
+	// if this is the first query since the last time we sent off a bundle
+	if !q.bundlePending {
+		// we have to start a goroutine that will fulfill the pending requests
+		go q.waitThenDrain()
 
-	// we could have any number of middlewares that we have to go through so
-	for _, mware := range q.middlewares {
-		err := mware(acc)
-		if err != nil {
-			return err
-		}
+		// we now have a bundle pending
+		q.bundlePending = true
 	}
+	q.bundleLock.Unlock()
 
-	// fire the response to the queryer's url
-	resp, err := q.client.Do(acc)
-	if err != nil {
-		return err
-	}
-
-	// read the full body
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	result := map[string]interface{}{}
-	err = json.Unmarshal(body, &result)
-	if err != nil {
-		return fmt.Errorf("Response body was not valid json: %s", string(body))
-	}
+	// wait for the result
+	result := <-responseCh
 
 	// if there is an error
 	if _, ok := result["errors"]; ok {
@@ -139,4 +126,11 @@ func (q *MultiOpQueryer) Query(ctx context.Context, input *QueryInput, receiver 
 
 	// pass the result along
 	return nil
+}
+
+// wait then drain is called whenever a new bundle has to be kicked off
+func (q *MultiOpQueryer) waitThenDrain() {
+	// the first thing we have to do is wait the designated amount of time
+	time.Sleep(q.BatchInterval)
+
 }
