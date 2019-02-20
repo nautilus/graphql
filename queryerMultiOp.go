@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -30,13 +31,19 @@ func NewMultiOpQueryer(url string, interval time.Duration, maxBatchSize int) *Mu
 	}
 
 	// instantiate a dataloader we can use for queries
-	queryer.loader = dataloader.NewBatchedLoader(queryer.loadQuery, dataloader.WithCache(&dataloader.NoCache{}))
+	queryer.loader = dataloader.NewBatchedLoader(
+		queryer.loadQuery,
+		dataloader.WithCache(&dataloader.NoCache{}),
+		dataloader.WithWait(interval),
+		dataloader.WithBatchCapacity(maxBatchSize),
+	)
 
 	// instantiate a network queryer we can use later
 	queryer.queryer = &NetworkQueryer{
 		URL: url,
 	}
 
+	// we're done creating the queryer
 	return queryer
 }
 
@@ -86,6 +93,7 @@ func (q *MultiOpQueryer) Query(ctx context.Context, input *QueryInput, receiver 
 }
 
 func (q *MultiOpQueryer) loadQuery(ctx context.Context, keys dataloader.Keys) []*dataloader.Result {
+	fmt.Println("loading keys", len(keys))
 	// a place to store the results
 	results := []*dataloader.Result{}
 
@@ -124,6 +132,8 @@ func (q *MultiOpQueryer) loadQuery(ctx context.Context, keys dataloader.Keys) []
 	for _, result := range queryResults {
 		results = append(results, &dataloader.Result{Data: result})
 	}
+
+	fmt.Println("total results", len(results))
 
 	// return the results
 	return results

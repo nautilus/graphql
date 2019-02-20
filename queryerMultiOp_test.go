@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"sync"
 	"testing"
 	"time"
 
@@ -14,7 +15,10 @@ import (
 
 type contextKey int
 
-const requestLabel contextKey = iota
+const (
+	requestLabel contextKey = iota
+	responseCount
+)
 
 func TestNewMultiOpQueryer(t *testing.T) {
 	queryer := NewMultiOpQueryer("foo", 1*time.Millisecond, 100)
@@ -39,10 +43,17 @@ func TestMultiOpQueryer_batchesRequests(t *testing.T) {
 
 			label := req.Context().Value(requestLabel).(string)
 
+			body := ""
+			for i := 0; i < req.Context().Value(responseCount).(int); i++ {
+				body += fmt.Sprintf(`{ "data": { "nCalled": "%s:%v" } },`, label, nCalled)
+			}
+
 			return &http.Response{
 				StatusCode: 200,
 				// Send response to be tested
-				Body: ioutil.NopCloser(bytes.NewBufferString(fmt.Sprintf("[{ \"nCalled\": \"%v:%v\" }]", label, nCalled))),
+				Body: ioutil.NopCloser(bytes.NewBufferString(fmt.Sprintf(`[
+					%s
+				]`, body[:len(body)-1]))),
 				// Must be set to non-nil value or it panics
 				Header: make(http.Header),
 			}
@@ -57,25 +68,36 @@ func TestMultiOpQueryer_batchesRequests(t *testing.T) {
 	result2 := map[string]interface{}{}
 	result3 := map[string]interface{}{}
 
-	// invoke the queries as close together as possible
-	err1 := queryer.Query(context.WithValue(context.Background(), requestLabel, "1"), &QueryInput{Query: query}, &result1)
+	// query once on its own
+	ctx1 := context.WithValue(context.WithValue(context.Background(), requestLabel, "1"), responseCount, 1)
+	queryer.Query(ctx1, &QueryInput{Query: query}, &result1)
 
-	// wait a little longer than the batch interval
+	// wait a bit
 	time.Sleep(interval + 10*time.Millisecond)
 
-	// invoke the queryer in quick sucession
-	err2 := queryer.Query(context.WithValue(context.Background(), requestLabel, "2"), &QueryInput{Query: query}, &result2)
-	err3 := queryer.Query(context.WithValue(context.Background(), requestLabel, "3"), &QueryInput{Query: query}, &result3)
+	// query twice back to back
+	count := &sync.WaitGroup{}
+	count.Add(1)
+	go func() {
+		ctx2 := context.WithValue(context.WithValue(context.Background(), requestLabel, "2"), responseCount, 2)
+		queryer.Query(ctx2, &QueryInput{Query: query}, &result2)
+		count.Done()
+	}()
+	count.Add(1)
+	go func() {
+		ctx3 := context.WithValue(context.WithValue(context.Background(), requestLabel, "2"), responseCount, 2)
+		queryer.Query(ctx3, &QueryInput{Query: query}, &result3)
+		count.Done()
+	}()
 
-	if !assert.Nil(t, err1) || !assert.Nil(t, err2) || !assert.Nil(t, err3) {
-		return
-	}
+	// wait for the queries to be done
+	count.Wait()
 
 	// make sure that we only invoked the client twice
 	assert.Equal(t, 2, nCalled)
 
 	// make sure that we got the right results
-	assert.Equal(t, map[string]interface{}{"nCalled": 1}, result1)
-	assert.Equal(t, map[string]interface{}{"nCalled": 2}, result2)
-	assert.Equal(t, map[string]interface{}{"nCalled": 3}, result3)
+	assert.Equal(t, map[string]interface{}{"nCalled": "1:1"}, result1)
+	assert.Equal(t, map[string]interface{}{"nCalled": "2:2"}, result2)
+	assert.Equal(t, map[string]interface{}{"nCalled": "2:2"}, result3)
 }
