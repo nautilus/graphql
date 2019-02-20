@@ -37,6 +37,10 @@ func (q *SingleRequestQueryer) WithHTTPClient(client *http.Client) Queryer {
 	return q
 }
 
+func (q *SingleRequestQueryer) URL() string {
+	return q.queryer.URL
+}
+
 // Query sends the query to the designated url and returns the response.
 func (q *SingleRequestQueryer) Query(ctx context.Context, input *QueryInput, receiver interface{}) error {
 	// the payload
