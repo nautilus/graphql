@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestNewNetworkQueryer(t *testing.T) {
+func TestNewSingleRequestQueryer(t *testing.T) {
 	// make sure that create a new query renderer saves the right URL
-	assert.Equal(t, "foo", NewNetworkQueryer("foo").URL)
+	assert.Equal(t, "foo", NewSingleRequestQueryer("foo").queryer.URL)
 }

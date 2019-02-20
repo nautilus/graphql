@@ -1,7 +1,11 @@
 package graphql
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
+	"io/ioutil"
 	"net/http"
 	"reflect"
 
@@ -17,10 +21,27 @@ type RemoteSchema struct {
 
 // QueryInput provides all of the information required to fire a query
 type QueryInput struct {
-	Query         string
-	QueryDocument *ast.QueryDocument
-	OperationName string
-	Variables     map[string]interface{}
+	Query         string                 `json:"query"`
+	QueryDocument *ast.QueryDocument     `json:"-"`
+	OperationName string                 `json:"operationName"`
+	Variables     map[string]interface{} `json:"variables"`
+}
+
+// String returns a guarenteed unique string that can be used to identify the input
+func (i *QueryInput) String() string {
+	// let's just marshal the input
+	marshaled, err := json.Marshal(i)
+	if err != nil {
+		return ""
+	}
+
+	// return the result
+	return string(marshaled)
+}
+
+// Raw returns the "raw underlying value of the key" when used by dataloader
+func (i *QueryInput) Raw() interface{} {
+	return i
 }
 
 // Queryer is a interface for objects that can perform
@@ -28,7 +49,7 @@ type Queryer interface {
 	Query(context.Context, *QueryInput, interface{}) error
 }
 
-// NetworkMiddleware are functions can be passed to NetworkQueryer.WithMiddleware to affect its internal
+// NetworkMiddleware are functions can be passed to SingleRequestQueryer.WithMiddleware to affect its internal
 // behavior
 type NetworkMiddleware func(*http.Request) error
 
@@ -80,5 +101,86 @@ func (q QueryerFunc) Query(ctx context.Context, input *QueryInput, receiver inte
 	reflect.ValueOf(receiver).Elem().Set(reflect.ValueOf(response))
 
 	// no errors
+	return nil
+}
+
+type NetworkQueryer struct {
+	URL         string
+	Middlewares []NetworkMiddleware
+	Client      *http.Client
+}
+
+// SendQuery is responsible for sending the provided payload to the desingated URL
+func (q *NetworkQueryer) SendQuery(ctx context.Context, payload []byte) ([]byte, error) {
+	// construct the initial request we will send to the client
+	req, err := http.NewRequest("POST", q.URL, bytes.NewBuffer(payload))
+	if err != nil {
+		return nil, err
+	}
+	// add the current context to the request
+	acc := req.WithContext(ctx)
+	acc.Header.Set("Content-Type", "application/json")
+
+	// we could have any number of middlewares that we have to go through so
+	for _, mware := range q.Middlewares {
+		err := mware(acc)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// fire the response to the queryer's url
+	if q.Client == nil {
+		q.Client = &http.Client{}
+	}
+
+	resp, err := q.Client.Do(acc)
+	if err != nil {
+		return nil, err
+	}
+
+	// read the full body
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	// we're done
+	return body, err
+}
+
+// ExtractErrors takes the result from a remote query and writes it to the provided pointer
+func (q *NetworkQueryer) ExtractErrors(result map[string]interface{}) error {
+	// if there is an error
+	if _, ok := result["errors"]; ok {
+		// a list of errors from the response
+		errList := ErrorList{}
+
+		// build up a list of errors
+		errs, ok := result["errors"].([]interface{})
+		if !ok {
+			return errors.New("errors was not a list")
+		}
+
+		// a list of error messages
+		for _, err := range errs {
+			obj, ok := err.(map[string]interface{})
+			if !ok {
+				return errors.New("encountered non-object error")
+			}
+
+			message, ok := obj["message"].(string)
+			if !ok {
+				return errors.New("error message was not a string")
+			}
+
+			errList = append(errList, NewError("", message))
+		}
+
+		return errList
+	}
+
+	// pass the result along
 	return nil
 }

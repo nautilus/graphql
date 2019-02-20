@@ -2,12 +2,11 @@ package graphql
 
 import (
 	"context"
-	"errors"
+	"encoding/json"
 	"net/http"
-	"sync"
 	"time"
 
-	"github.com/mitchellh/mapstructure"
+	"github.com/graph-gophers/dataloader"
 )
 
 // MultiOpQueryer is a queryer that will batch subsequent query on some interval into a single network request
@@ -15,122 +14,97 @@ import (
 type MultiOpQueryer struct {
 	MaxBatchSize  int
 	BatchInterval time.Duration
-	URL           string
 
-	// the http client to use for requests
-	client *http.Client
-	// the list of middlewares to apply to the request object
-	middlewares []NetworkMiddleware
-
-	// some internal attributes to track bundling
-	bundleChan    chan *newOperation
-	bundleLock    *sync.Mutex
-	bundlePending bool
-}
-
-type newOperation struct {
-	Input      *QueryInput
-	ResponseCh chan map[string]interface{}
+	// internals for bundling queries
+	queryer *NetworkQueryer
+	loader  *dataloader.Loader
 }
 
 // NewMultiOpQueryer returns a MultiOpQueryer with the provided paramters
 func NewMultiOpQueryer(url string, interval time.Duration, maxBatchSize int) *MultiOpQueryer {
-	return &MultiOpQueryer{
+	queryer := &MultiOpQueryer{
 		MaxBatchSize:  maxBatchSize,
 		BatchInterval: interval,
-		URL:           url,
 	}
+
+	// instantiate a dataloader we can use for queries
+	queryer.loader = dataloader.NewBatchedLoader(queryer.loadQuery, dataloader.WithCache(&dataloader.NoCache{}))
+
+	// instantiate a network queryer we can use later
+	queryer.queryer = &NetworkQueryer{
+		URL: url,
+	}
+
+	return queryer
 }
 
 // WithMiddlewares lets the user assign middlewares to the queryer
 func (q *MultiOpQueryer) WithMiddlewares(mwares []NetworkMiddleware) Queryer {
-	q.middlewares = mwares
+	q.queryer.Middlewares = mwares
 	return q
 }
 
 // WithHTTPClient lets the user configure the client to use when making network requests
 func (q *MultiOpQueryer) WithHTTPClient(client *http.Client) Queryer {
-	q.client = client
+	q.queryer.Client = client
 	return q
 }
 
 // Query bundles queries that happen within the given interval into a single network request
 // whose body is a list of the operation payload.
 func (q *MultiOpQueryer) Query(ctx context.Context, input *QueryInput, receiver interface{}) error {
-	// create a channel where we will get the response
-	responseCh := make(chan map[string]interface{})
-
-	// add this query to the bundle
-	q.bundleChan <- &newOperation{
-		Input:      input,
-		ResponseCh: responseCh,
-	}
-
-	// make sure we have access to the lock
-	q.bundleLock.Lock()
-	// if this is the first query since the last time we sent off a bundle
-	if !q.bundlePending {
-		// we have to start a goroutine that will fulfill the pending requests
-		go q.waitThenDrain()
-
-		// we now have a bundle pending
-		q.bundlePending = true
-	}
-	q.bundleLock.Unlock()
-
-	// wait for the result
-	result := <-responseCh
-
-	// if there is an error
-	if _, ok := result["errors"]; ok {
-		// a list of errors from the response
-		errList := ErrorList{}
-
-		// build up a list of errors
-		errs, ok := result["errors"].([]interface{})
-		if !ok {
-			return errors.New("errors was not a list")
-		}
-
-		// a list of error messages
-		for _, err := range errs {
-			obj, ok := err.(map[string]interface{})
-			if !ok {
-				return errors.New("encountered non-object error")
-			}
-
-			message, ok := obj["message"].(string)
-			if !ok {
-				return errors.New("error message was not a string")
-			}
-
-			errList = append(errList, NewError("", message))
-		}
-
-		return errList
-	}
-
-	// assign the result under the data key to the receiver
-	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
-		TagName: "json",
-		Result:  receiver,
-	})
+	// process the input
+	result, err := q.loader.Load(ctx, input)()
 	if err != nil {
 		return err
 	}
 
-	err = decoder.Decode(result["data"])
-	if err != nil {
-		return err
-	}
+	// we need to take the result and set the receiver to match (keep errors in mind too - extractErrors)
 
-	// pass the result along
-	return nil
+	// format the result as needed
+	return q.queryer.ExtractErrors(result.(map[string]interface{}))
 }
 
-// wait then drain is called whenever a new bundle has to be kicked off
-func (q *MultiOpQueryer) waitThenDrain() {
-	// the first thing we have to do is wait the designated amount of time
-	time.Sleep(q.BatchInterval)
+func (q *MultiOpQueryer) loadQuery(ctx context.Context, keys dataloader.Keys) []*dataloader.Result {
+	// a place to store the results
+	results := []*dataloader.Result{}
 
+	// the keys serialize to the correct representation
+	payload, err := json.Marshal(keys)
+	if err != nil {
+		// we need to result the same error for each result
+		for range keys {
+			results = append(results, &dataloader.Result{Error: err})
+		}
+		return results
+	}
+
+	// send the payload to the server
+	response, err := q.queryer.SendQuery(ctx, payload)
+	if err != nil {
+		// we need to result the same error for each result
+		for range keys {
+			results = append(results, &dataloader.Result{Error: err})
+		}
+		return results
+	}
+
+	// a place to handle each result
+	queryResults := []map[string]interface{}{}
+	err = json.Unmarshal(response, &queryResults)
+	if err != nil {
+		// we need to result the same error for each result
+		for range keys {
+			results = append(results, &dataloader.Result{Error: err})
+		}
+		return results
+	}
+
+	// take the result from the query and turn it into something dataloader is okay with
+	for _, result := range queryResults {
+		results = append(results, &dataloader.Result{Data: result})
+	}
+
+	// return the results
+	return results
 }

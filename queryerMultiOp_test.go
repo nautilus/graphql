@@ -20,7 +20,7 @@ func TestNewMultiOpQueryer(t *testing.T) {
 	queryer := NewMultiOpQueryer("foo", 1*time.Millisecond, 100)
 
 	// make sure the queryer config is all correct
-	assert.Equal(t, "foo", queryer.URL)
+	assert.Equal(t, "foo", queryer.queryer.URL)
 	assert.Equal(t, 1*time.Millisecond, queryer.BatchInterval)
 	assert.Equal(t, 100, queryer.MaxBatchSize)
 }
@@ -42,7 +42,7 @@ func TestMultiOpQueryer_batchesRequests(t *testing.T) {
 			return &http.Response{
 				StatusCode: 200,
 				// Send response to be tested
-				Body: ioutil.NopCloser(bytes.NewBufferString(fmt.Sprintf("{ \"nCalled\": \"%v:%v\" }", label, nCalled))),
+				Body: ioutil.NopCloser(bytes.NewBufferString(fmt.Sprintf("[{ \"nCalled\": \"%v:%v\" }]", label, nCalled))),
 				// Must be set to non-nil value or it panics
 				Header: make(http.Header),
 			}

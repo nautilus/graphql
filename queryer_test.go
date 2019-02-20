@@ -65,7 +65,7 @@ func TestHTTPQueryerBasicCases(t *testing.T) {
 	}{
 		{
 			"Single Request",
-			NewNetworkQueryer("hello"),
+			NewSingleRequestQueryer("hello"),
 		},
 		{
 			"MultiOp",
@@ -319,7 +319,7 @@ func TestQueryerWithMiddlewares(t *testing.T) {
 	}{
 		{
 			"Single Request",
-			NewNetworkQueryer("hello"),
+			NewSingleRequestQueryer("hello"),
 		},
 		{
 			"MultiOp",

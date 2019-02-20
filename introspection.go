@@ -12,7 +12,7 @@ import (
 // at a remote service and reconstructing the schema object from the response
 func IntrospectRemoteSchema(url string) (*RemoteSchema, error) {
 	// introspect the schema at the designated url
-	schema, err := IntrospectAPI(NewNetworkQueryer(url))
+	schema, err := IntrospectAPI(NewSingleRequestQueryer(url))
 	if err != nil {
 		return nil, err
 	}
