@@ -718,6 +718,7 @@ func TestIntrospectQueryUnmarshalType_inputObjects(t *testing.T) {
 	// make sure the object meta data is right
 	assert.Equal(t, "InputObjectType", object.Name)
 	assert.Equal(t, "Description", object.Description)
+	assert.Equal(t, ast.InputObject, object.Kind)
 
 	// we should have added a single field
 	if len(object.Fields) != 1 {

@@ -11,6 +11,7 @@ import (
 // IntrospectRemoteSchema is used to build a RemoteSchema by firing the introspection query
 // at a remote service and reconstructing the schema object from the response
 func IntrospectRemoteSchema(url string) (*RemoteSchema, error) {
+
 	// introspect the schema at the designated url
 	schema, err := IntrospectAPI(NewSingleRequestQueryer(url))
 	if err != nil {
@@ -236,6 +237,8 @@ func introspectionUnmarshalType(schemaType IntrospectionQueryFullType) *ast.Defi
 		definition.Kind = ast.Interface
 	case "UNION":
 		definition.Kind = ast.Union
+	case "INPUT_OBJECT":
+		definition.Kind = ast.InputObject
 	case "ENUM":
 		definition.Kind = ast.Enum
 		// save the enum values
