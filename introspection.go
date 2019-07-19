@@ -193,8 +193,6 @@ func IntrospectAPI(queryer Queryer) (*ast.Schema, error) {
 			return nil, err
 		}
 
-		fmt.Println(directive.Locations)
-
 		// save the directive definition to the schema
 		schema.Directives[directive.Name] = &ast.DirectiveDefinition{
 			Name:        directive.Name,
