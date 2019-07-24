@@ -94,7 +94,7 @@ func PrintQuery(document *ast.QueryDocument) (string, error) {
 						Kind: "Named",
 						Name: &gAst.Name{
 							Kind:  "Name",
-							Value: "ID",
+							Value: variable.Type.Name(),
 						},
 					},
 				},

@@ -584,7 +584,7 @@ fragment Foo on User {
 		},
 		// named query with variables
 		{
-			`query foo($id: ID!) {
+			`query foo($id: String!) {
   hello
 }
 `,
@@ -601,7 +601,7 @@ fragment Foo on User {
 						&ast.VariableDefinition{
 							Variable: "id",
 							Type: &ast.Type{
-								NamedType: "ID",
+								NamedType: "String",
 								NonNull:   true,
 							},
 						},
