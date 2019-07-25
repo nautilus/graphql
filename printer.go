@@ -301,10 +301,15 @@ func printerBuildType(from *ast.Type) (gAst.Type, error) {
 
 	// check if we have a list
 	if from.Elem != nil {
+		innerType, err := printerBuildType(from.Elem)
+		if err != nil {
+			return nil, err
+		}
+
 		// wrap the element in a list
 		finalType = &gAst.List{
 			Kind: "List",
-			Type: finalType,
+			Type: innerType,
 		}
 	}
 
