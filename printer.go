@@ -79,6 +79,10 @@ func PrintQuery(document *ast.QueryDocument) (string, error) {
 		gVarDefs := []*gAst.VariableDefinition{}
 
 		for _, variable := range operation.VariableDefinitions {
+			varType, err := printerBuildType(variable.Type)
+			if err != nil {
+				return "", err
+			}
 			gVarDefs = append(gVarDefs, &gAst.VariableDefinition{
 				Kind: "VariableDefinition",
 				Variable: &gAst.Variable{
@@ -88,16 +92,7 @@ func PrintQuery(document *ast.QueryDocument) (string, error) {
 						Value: variable.Variable,
 					},
 				},
-				Type: &gAst.NonNull{
-					Kind: "NonNull",
-					Type: &gAst.Named{
-						Kind: "Named",
-						Name: &gAst.Name{
-							Kind:  "Name",
-							Value: variable.Type.Name(),
-						},
-					},
-				},
+				Type: varType,
 			})
 		}
 
@@ -289,6 +284,39 @@ func printerConvertSelectionSet(selectionSet ast.SelectionSet) (*gAst.SelectionS
 		Kind:       "SelectionSet",
 		Selections: selections,
 	}, nil
+}
+
+func printerBuildType(from *ast.Type) (gAst.Type, error) {
+	// the final type
+	var finalType gAst.Type
+
+	// start with the inner name
+	finalType = &gAst.Named{
+		Kind: "Named",
+		Name: &gAst.Name{
+			Kind:  "Name",
+			Value: from.Name(),
+		},
+	}
+
+	// check if we have a list
+	if from.Elem != nil {
+		// wrap the element in a list
+		finalType = &gAst.List{
+			Kind: "List",
+			Type: finalType,
+		}
+	}
+
+	// check if we are not null
+	if from.NonNull == true {
+		finalType = &gAst.NonNull{
+			Kind: "NonNull",
+			Type: finalType,
+		}
+	}
+
+	return finalType, nil
 }
 
 func printerBuildValue(from *ast.Value) (gAst.Value, error) {

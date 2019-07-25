@@ -609,6 +609,29 @@ fragment Foo on User {
 				},
 				},
 			},
+		}, {
+			`query foo($id: [String]) {
+  hello
+}
+`,
+			&ast.QueryDocument{
+				Operations: ast.OperationList{&ast.OperationDefinition{
+					Operation: ast.Query,
+					Name:      "foo",
+					SelectionSet: ast.SelectionSet{
+						&ast.Field{
+							Name: "hello",
+						},
+					},
+					VariableDefinitions: ast.VariableDefinitionList{
+						&ast.VariableDefinition{
+							Variable: "id",
+							Type:     ast.ListType(ast.NamedType("String", &ast.Position{}), &ast.Position{}),
+						},
+					},
+				},
+				},
+			},
 		},
 		// single mutation field
 		{
