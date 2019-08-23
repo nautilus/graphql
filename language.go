@@ -16,6 +16,13 @@ type CollectedField struct {
 // CollectedFieldList is a list of CollectedField with utilities for retrieving them
 type CollectedFieldList []*CollectedField
 
+func getDisplayName(field *ast.Field) string {
+	if field.Alias != "" {
+		return field.Alias
+	}
+	return field.Name
+}
+
 func (c *CollectedFieldList) GetOrCreateForAlias(alias string, creator func() *CollectedField) *CollectedField {
 	// look for the field with the given alias
 	for _, field := range *c {
@@ -75,7 +82,7 @@ func collectFields(sources []ast.SelectionSet, fragments ast.FragmentDefinitionL
 				}
 
 				// look up the entry in the field list for this field
-				collected := selectedFields.GetOrCreateForAlias(selectedField.Alias, func() *CollectedField {
+				collected := selectedFields.GetOrCreateForAlias(getDisplayName(selectedField), func() *CollectedField {
 					return &CollectedField{Field: selectedField}
 				})
 
@@ -111,7 +118,7 @@ func collectFields(sources []ast.SelectionSet, fragments ast.FragmentDefinitionL
 				// each field in the inline fragment needs to be added to the selection
 				for _, fragmentSelection := range *fields {
 					// add the selection from the field to our accumulator
-					collected := selectedFields.GetOrCreateForAlias(fragmentSelection.Alias, func() *CollectedField {
+					collected := selectedFields.GetOrCreateForAlias(getDisplayName(fragmentSelection.Field), func() *CollectedField {
 						return fragmentSelection
 					})
 
