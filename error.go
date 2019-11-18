@@ -4,13 +4,13 @@ import "strings"
 
 // ErrorExtensions define fields that extend the standard graphql error shape
 type ErrorExtensions struct {
-	Code string `json:"code"`
+	Code 		string `json:"code"`
 }
 
 // Error represents a graphql error
 type Error struct {
-	Extensions ErrorExtensions `json:"extensions"`
-	Message    string          `json:"message"`
+	Extensions ErrorExtensions 	`json:"extensions"`
+	Message    string          	`json:"message"`
 }
 
 func (e *Error) Error() string {
