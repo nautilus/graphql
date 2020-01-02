@@ -2,15 +2,11 @@ package graphql
 
 import "strings"
 
-// ErrorExtensions define fields that extend the standard graphql error shape
-type ErrorExtensions struct {
-	Code 		string `json:"code"`
-}
-
 // Error represents a graphql error
 type Error struct {
-	Extensions ErrorExtensions 	`json:"extensions"`
-	Message    string          	`json:"message"`
+	Extensions map[string]interface{} `json:"extensions"`
+	Message    string                 `json:"message"`
+	Path       []interface{}          `json:"path,omitempty"`
 }
 
 func (e *Error) Error() string {
@@ -21,8 +17,8 @@ func (e *Error) Error() string {
 func NewError(code string, message string) *Error {
 	return &Error{
 		Message: message,
-		Extensions: ErrorExtensions{
-			Code: code,
+		Extensions: map[string]interface{}{
+			"code": code,
 		},
 	}
 }
