@@ -175,14 +175,21 @@ func (q *NetworkQueryer) ExtractErrors(result map[string]interface{}) error {
 				return errors.New("error message was not a string")
 			}
 
-			code := ""
-			extensions, ok := obj["extensions"].(map[string]interface{})
-			if ok {
-				code = extensions["code"].(string)
+			var extensions map[string]interface{}
+			if e, ok := obj["extensions"].(map[string]interface{}); ok {
+				extensions = e
 			}
 
+			var path []interface{}
+			if p, ok := obj["path"].([]interface{}); ok {
+				path = p
+			}
 
-			errList = append(errList, NewError(code, message))
+			errList = append(errList, &Error{
+				Message:    message,
+				Path:       path,
+				Extensions: extensions,
+			})
 		}
 
 		return errList
