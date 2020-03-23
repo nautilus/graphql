@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"reflect"
 
-	"github.com/vektah/gqlparser/ast"
+	"github.com/vektah/gqlparser/v2/ast"
 )
 
 // RemoteSchema encapsulates a particular schema that can be executed by sending network requests to the
