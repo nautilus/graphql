@@ -10,3 +10,5 @@ require (
 	github.com/vektah/gqlparser v1.1.0
 	golang.org/x/net v0.0.0-20190213061140-3a22650c66bd // indirect
 )
+
+go 1.13
