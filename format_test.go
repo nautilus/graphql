@@ -14,9 +14,34 @@ func TestFormatSelectionSet(t *testing.T) {
 		expected string
 	}{
 		{
-			ast.SelectionSet{&ast.Field{Name: "firstName"}},
+			ast.SelectionSet{
+				&ast.Field{Name: "firstName"},
+				&ast.Field{Name: "friend", SelectionSet: ast.SelectionSet{&ast.Field{Name: "lastName"}}},
+			},
 			`{
     firstName
+    friend {
+        lastName
+    }
+}`,
+		},
+		{
+			ast.SelectionSet{&ast.FragmentSpread{Name: "MyFragment"}},
+			`{
+    ...MyFragment
+}`,
+		},
+		{
+			ast.SelectionSet{
+				&ast.InlineFragment{
+					TypeCondition: "MyType",
+					SelectionSet:  ast.SelectionSet{&ast.Field{Name: "firstName"}},
+				},
+			},
+			`{
+    ... on MyType {
+        firstName
+    }
 }`,
 		},
 	}
