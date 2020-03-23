@@ -14,6 +14,10 @@ func TestFormatSelectionSet(t *testing.T) {
 		expected string
 	}{
 		{
+			ast.SelectionSet{},
+			"{}",
+		},
+		{
 			ast.SelectionSet{
 				&ast.Field{Name: "firstName"},
 				&ast.Field{Name: "friend", SelectionSet: ast.SelectionSet{&ast.Field{Name: "lastName"}}},
