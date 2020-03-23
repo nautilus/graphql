@@ -7,7 +7,7 @@ import (
 
 	"github.com/carted/graphql/language/printer"
 	gAst "github.com/graphql-go/graphql/language/ast"
-	"github.com/vektah/gqlparser/ast"
+	"github.com/vektah/gqlparser/v2/ast"
 )
 
 // PrintQuery creates a string representation of an operation
