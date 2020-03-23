@@ -3,7 +3,7 @@ package graphql
 import (
 	"fmt"
 
-	"github.com/vektah/gqlparser/ast"
+	"github.com/vektah/gqlparser/v2/ast"
 )
 
 // CollectedField is a representations of a field with the list of selection sets that
@@ -43,17 +43,14 @@ func (c *CollectedFieldList) GetOrCreateForAlias(alias string, creator func() *C
 // ApplyFragments takes a list of selections and merges them into one, embedding any fragments it
 // runs into along the way
 func ApplyFragments(selectionSet ast.SelectionSet, fragmentDefs ast.FragmentDefinitionList) (ast.SelectionSet, error) {
-	// build up a list of selection sets
-	final := ast.SelectionSet{}
-
-	// look for all of the collected fields
+	// apply the fragments
 	collectedFields, err := collectFields([]ast.SelectionSet{selectionSet}, fragmentDefs)
 	if err != nil {
 		return nil, err
 	}
 
-	// the final result of collecting fields should have a single selection in its selection set
-	// which should be a selection for the same field referenced by collected.Field
+	// turn the CollectedField list into a selection set
+	final := ast.SelectionSet{}
 	for _, collected := range *collectedFields {
 		final = append(final, collected.Field)
 	}

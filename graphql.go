@@ -1,8 +1,8 @@
 package graphql
 
 import (
-	"github.com/vektah/gqlparser"
-	"github.com/vektah/gqlparser/ast"
+	"github.com/vektah/gqlparser/v2"
+	"github.com/vektah/gqlparser/v2/ast"
 )
 
 // LoadSchema takes an SDL string and returns the parsed version
