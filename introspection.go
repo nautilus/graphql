@@ -8,6 +8,7 @@ import (
 	"github.com/vektah/gqlparser/v2/ast"
 )
 
+
 // IntrospectRemoteSchema is used to build a RemoteSchema by firing the introspection query
 // at a remote service and reconstructing the schema object from the response
 func IntrospectRemoteSchema(url string) (*RemoteSchema, error) {
@@ -50,8 +51,13 @@ func IntrospectAPI(queryer Queryer) (*ast.Schema, error) {
 	// a place to hold the result of firing the introspection query
 	result := IntrospectionQueryResult{}
 
+	input := &QueryInput{
+		Query: IntrospectionQuery,
+		OperationName: "IntrospectionQuery",
+	}
+
 	// fire the introspection query
-	err := queryer.Query(context.Background(), &QueryInput{Query: IntrospectionQuery}, &result)
+	err := queryer.Query(context.Background(), input, &result)
 	if err != nil {
 		return nil, err
 	}
