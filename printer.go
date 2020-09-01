@@ -290,7 +290,7 @@ func printerBuildType(from *ast.Type) (gAst.Type, error) {
 	// the final type
 	var finalType gAst.Type
 
-	// start with the inner name
+	// start with the inner fileName
 	finalType = &gAst.Named{
 		Kind: "Named",
 		Name: &gAst.Name{

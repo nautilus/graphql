@@ -32,17 +32,17 @@ func formatSelection(level int, selectionSet ast.SelectionSet) string {
 		acc += formatIndentPrefix(level)
 		switch selection := selection.(type) {
 		case *ast.Field:
-			// add the field name
+			// add the field fileName
 			acc += selection.Name
 			if len(selection.SelectionSet) > 0 {
 				acc += formatSelectionSelectionSet(level, selection.SelectionSet)
 			}
 		case *ast.InlineFragment:
-			// print the fragment name
+			// print the fragment fileName
 			acc += fmt.Sprintf("... on %v", selection.TypeCondition) +
 				formatSelectionSelectionSet(level, selection.SelectionSet)
 		case *ast.FragmentSpread:
-			// print the fragment name
+			// print the fragment fileName
 			acc += "..." + selection.Name
 		}
 	}

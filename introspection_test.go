@@ -49,7 +49,7 @@ func TestIntrospectQuery_savesQueryType(t *testing.T) {
 		return
 	}
 
-	// make sure the query type has the right name
+	// make sure the query type has the right fileName
 	assert.Equal(t, "Query", schema.Query.Name)
 }
 
@@ -97,7 +97,7 @@ func TestIntrospectQuery_savesMutationType(t *testing.T) {
 		return
 	}
 
-	// make sure the query type has the right name
+	// make sure the query type has the right fileName
 	assert.Equal(t, "Mutation", schema.Mutation.Name)
 }
 
@@ -145,7 +145,7 @@ func TestIntrospectQuery_savesSubscriptionType(t *testing.T) {
 		return
 	}
 
-	// make sure the query type has the right name
+	// make sure the query type has the right fileName
 	assert.Equal(t, "Subscription", schema.Subscription.Name)
 }
 
@@ -280,14 +280,14 @@ func TestIntrospectQuery_interfaces(t *testing.T) {
 	// make sure the first possible type matches expectations
 	possibleType1 := possibleTypes[0]
 	if possibleType1.Name != "Type1" && possibleType1.Name != "Type2" {
-		t.Errorf("first possible type did not have the right name: %s", possibleType1.Name)
+		t.Errorf("first possible type did not have the right fileName: %s", possibleType1.Name)
 		return
 	}
 
 	// make sure the first possible type matches expectations
 	possibleType2 := possibleTypes[0]
 	if possibleType2.Name != "Type1" && possibleType2.Name != "Type2" {
-		t.Errorf("first possible type did not have the right name: %s", possibleType2.Name)
+		t.Errorf("first possible type did not have the right fileName: %s", possibleType2.Name)
 		return
 	}
 
@@ -378,14 +378,14 @@ func TestIntrospectQuery_unions(t *testing.T) {
 	// make sure the first possible type matches expectations
 	possibleType1 := possibleTypes[0]
 	if possibleType1.Name != "Type1" && possibleType1.Name != "Type2" {
-		t.Errorf("first possible type did not have the right name: %s", possibleType1.Name)
+		t.Errorf("first possible type did not have the right fileName: %s", possibleType1.Name)
 		return
 	}
 
 	// make sure the first possible type matches expectations
 	possibleType2 := possibleTypes[0]
 	if possibleType2.Name != "Type1" && possibleType2.Name != "Type2" {
-		t.Errorf("first possible type did not have the right name: %s", possibleType2.Name)
+		t.Errorf("first possible type did not have the right fileName: %s", possibleType2.Name)
 		return
 	}
 

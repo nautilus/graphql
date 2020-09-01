@@ -77,7 +77,7 @@ type MockSuccessQueryer struct {
 	Value interface{}
 }
 
-// Query looks up the name of the query in the map of responses and returns the value
+// Query looks up the fileName of the query in the map of responses and returns the value
 func (q *MockSuccessQueryer) Query(ctx context.Context, input *QueryInput, receiver interface{}) error {
 	// assume the mock is writing the same kind as the receiver
 	reflect.ValueOf(receiver).Elem().Set(reflect.ValueOf(q.Value))
@@ -121,6 +121,24 @@ func (q *NetworkQueryer) SendQuery(ctx context.Context, payload []byte) ([]byte,
 	acc := req.WithContext(ctx)
 	acc.Header.Set("Content-Type", "application/json")
 
+	return q.sendRequest(acc)
+}
+
+// SendMultipart is responsible for sending multipart request to the desingated URL
+func (q *NetworkQueryer) SendMultipart(ctx context.Context, payload []byte, contentType string) ([]byte, error) {
+	// construct the initial request we will send to the client
+	req, err := http.NewRequest("POST", q.URL, bytes.NewBuffer(payload))
+	if err != nil {
+		return nil, err
+	}
+	// add the current context to the request
+	acc := req.WithContext(ctx)
+	acc.Header.Set("Content-Type", contentType)
+
+	return q.sendRequest(acc)
+}
+
+func (q *NetworkQueryer) sendRequest(acc *http.Request) ([]byte, error) {
 	// we could have any number of middlewares that we have to go through so
 	for _, mware := range q.Middlewares {
 		err := mware(acc)
