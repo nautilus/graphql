@@ -81,7 +81,7 @@ func prepareMultipart(payload []byte, uploadMap *UploadMap) (body []byte, conten
 		return
 	}
 
-	err = json.NewEncoder(fw).Encode(payload)
+	_, err = fw.Write(payload)
 	if err != nil {
 		return
 	}
