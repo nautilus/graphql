@@ -72,7 +72,7 @@ func IntrospectAPI(queryer Queryer) (*ast.Schema, error) {
 		Implements:    map[string][]*ast.Definition{},
 	}
 
-	// if we dont have a fileName on the response
+	// if we dont have a FileName on the response
 	if remoteSchema.QueryType.Name == "" {
 		return nil, errors.New("Could not find the root query")
 	}
@@ -117,9 +117,9 @@ func IntrospectAPI(queryer Queryer) (*ast.Schema, error) {
 
 			// each union value needs to be added to the list
 			for _, possibleType := range remoteType.PossibleTypes {
-				// if there is no fileName
+				// if there is no FileName
 				if possibleType.Name == "" {
-					return nil, errors.New("Could not find fileName of type")
+					return nil, errors.New("Could not find FileName of type")
 				}
 
 				// add the type to the union definition
@@ -140,9 +140,9 @@ func IntrospectAPI(queryer Queryer) (*ast.Schema, error) {
 
 			// each interface value needs to be added to the list
 			for _, iFace := range remoteType.Interfaces {
-				// if there is no fileName
+				// if there is no FileName
 				if iFace.Name == "" {
-					return nil, errors.New("Could not find fileName of type")
+					return nil, errors.New("Could not find FileName of type")
 				}
 
 				// add the type to the union definition
@@ -187,9 +187,9 @@ func IntrospectAPI(queryer Queryer) (*ast.Schema, error) {
 
 	// add each directive to the schema
 	for _, directive := range remoteSchema.Directives {
-		// if we dont have a fileName
+		// if we dont have a FileName
 		if directive.Name == "" {
-			return nil, errors.New("could not find directive fileName")
+			return nil, errors.New("could not find directive FileName")
 		}
 
 		// the list of directive locations
@@ -339,18 +339,18 @@ type IntrospectionQuerySchema struct {
 }
 
 type IntrospectionQueryDirective struct {
-	Name        string                    `json:"fileName"`
+	Name        string                    `json:"FileName"`
 	Description string                    `json:"description"`
 	Locations   []string                  `json:"locations"`
 	Args        []IntrospectionInputValue `json:"arg"`
 }
 
 type IntrospectionQueryRootType struct {
-	Name string `json:"fileName"`
+	Name string `json:"FileName"`
 }
 
 type IntrospectionQueryFullTypeField struct {
-	Name              string                    `json:"fileName"`
+	Name              string                    `json:"FileName"`
 	Description       string                    `json:"description"`
 	Args              []IntrospectionInputValue `json:"args"`
 	Type              IntrospectionTypeRef      `json:"type"`
@@ -360,7 +360,7 @@ type IntrospectionQueryFullTypeField struct {
 
 type IntrospectionQueryFullType struct {
 	Kind          string                             `json:"kind"`
-	Name          string                             `json:"fileName"`
+	Name          string                             `json:"FileName"`
 	Description   string                             `json:"description"`
 	InputFields   []IntrospectionInputValue          `json:"inputFields"`
 	Interfaces    []IntrospectionTypeRef             `json:"interfaces"`
@@ -370,14 +370,14 @@ type IntrospectionQueryFullType struct {
 }
 
 type IntrospectionQueryEnumDefinition struct {
-	Name              string `json:"fileName"`
+	Name              string `json:"FileName"`
 	Description       string `json:"description"`
 	IsDeprecated      bool   `json:"isDeprecated"`
 	DeprecationReason string `json:"deprecationReason"`
 }
 
 type IntrospectionInputValue struct {
-	Name         string               `json:"fileName"`
+	Name         string               `json:"FileName"`
 	Description  string               `json:"description"`
 	DefaultValue string               `json:"defaultValue"`
 	Type         IntrospectionTypeRef `json:"type"`
@@ -385,7 +385,7 @@ type IntrospectionInputValue struct {
 
 type IntrospectionTypeRef struct {
 	Kind   string                `json:"kind"`
-	Name   string                `json:"fileName"`
+	Name   string                `json:"FileName"`
 	OfType *IntrospectionTypeRef `json:"ofType"`
 }
 
@@ -393,14 +393,14 @@ type IntrospectionTypeRef struct {
 var IntrospectionQuery = `
 	query IntrospectionQuery {
 		__schema {
-			queryType { fileName }
-			mutationType { fileName }
-			subscriptionType { fileName }
+			queryType { FileName }
+			mutationType { FileName }
+			subscriptionType { FileName }
 			types {
 				...FullType
 			}
 			directives {
-				fileName
+				FileName
 				description
 				locations
 				args {
@@ -412,10 +412,10 @@ var IntrospectionQuery = `
 
 	fragment FullType on __Type {
 		kind
-		fileName
+		FileName
 		description
 		fields(includeDeprecated: true) {
-			fileName
+			FileName
 			description
 			args {
 				...InputValue
@@ -436,7 +436,7 @@ var IntrospectionQuery = `
 		}
 
 		enumValues(includeDeprecated: true) {
-			fileName
+			FileName
 			description
 			isDeprecated
 			deprecationReason
@@ -447,7 +447,7 @@ var IntrospectionQuery = `
 	}
 
 	fragment InputValue on __InputValue {
-		fileName
+		FileName
 		description
 		type { ...TypeRef }
 		defaultValue
@@ -455,28 +455,28 @@ var IntrospectionQuery = `
 
 	fragment TypeRef on __Type {
 		kind
-		fileName
+		FileName
 		ofType {
 			kind
-			fileName
+			FileName
 			ofType {
 				kind
-				fileName
+				FileName
 				ofType {
 					kind
-					fileName
+					FileName
 					ofType {
 						kind
-						fileName
+						FileName
 						ofType {
 							kind
-							fileName
+							FileName
 							ofType {
 								kind
-								fileName
+								FileName
 								ofType {
 									kind
-									fileName
+									FileName
 								}
 							}
 						}

@@ -16,8 +16,8 @@ type File interface {
 	io.Closer
 }
 type Upload struct {
-	file     File
-	fileName string
+	File     File
+	FileName string
 }
 
 type UploadMap []struct {
@@ -97,12 +97,12 @@ func prepareMultipart(payload []byte, uploadMap *UploadMap) (body []byte, conten
 	}
 
 	for index, uploadVariable := range *uploadMap {
-		fw, err := w.CreateFormFile(strconv.Itoa(index), uploadVariable.upload.fileName)
+		fw, err := w.CreateFormFile(strconv.Itoa(index), uploadVariable.upload.FileName)
 		if err != nil {
 			return b.Bytes(), w.FormDataContentType(), err
 		}
 
-		_, err = io.Copy(fw, uploadVariable.upload.file)
+		_, err = io.Copy(fw, uploadVariable.upload.File)
 		if err != nil {
 			return b.Bytes(), w.FormDataContentType(), err
 		}
