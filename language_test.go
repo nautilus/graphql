@@ -210,10 +210,10 @@ func TestExtractVariables(t *testing.T) {
 		Arguments ast.ArgumentList
 		Variables []string
 	}{
-		//  user(id: $id, FileName:$FileName) should extract ["id", "FileName"]
+		//  user(id: $id, name:$name) should extract ["id", "name"]
 		{
 			Name:      "Top Level arguments",
-			Variables: []string{"id", "FileName"},
+			Variables: []string{"id", "name"},
 			Arguments: ast.ArgumentList{
 				&ast.Argument{
 					Name: "id",
@@ -223,10 +223,10 @@ func TestExtractVariables(t *testing.T) {
 					},
 				},
 				&ast.Argument{
-					Name: "FileName",
+					Name: "name",
 					Value: &ast.Value{
 						Kind: ast.Variable,
-						Raw:  "FileName",
+						Raw:  "name",
 					},
 				},
 			},

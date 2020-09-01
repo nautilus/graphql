@@ -77,7 +77,7 @@ type MockSuccessQueryer struct {
 	Value interface{}
 }
 
-// Query looks up the FileName of the query in the map of responses and returns the value
+// Query looks up the name of the query in the map of responses and returns the value
 func (q *MockSuccessQueryer) Query(ctx context.Context, input *QueryInput, receiver interface{}) error {
 	// assume the mock is writing the same kind as the receiver
 	reflect.ValueOf(receiver).Elem().Set(reflect.ValueOf(q.Value))
