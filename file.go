@@ -58,11 +58,14 @@ func extractFiles(input *QueryInput) *UploadMap {
 		case Upload:
 			uploadMap.Add(valueTyped, varName)
 			input.Variables[varName] = nil
-		case []Upload:
-			for i, upload := range valueTyped {
-				uploadMap.Add(upload, fmt.Sprintf("%s.%d", varName, i))
+		case []interface{}:
+			for i, uploadVal := range valueTyped {
+				if upload, ok := uploadVal.(Upload); ok {
+					uploadMap.Add(upload, fmt.Sprintf("%s.%d", varName, i))
+				}
+				valueTyped[i] = nil
 			}
-			input.Variables[varName] = nil
+			input.Variables[varName] = valueTyped
 		default:
 			//noop
 		}
