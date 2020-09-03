@@ -11,8 +11,6 @@ import (
 
 type File interface {
 	io.Reader
-	io.ReaderAt
-	io.Seeker
 	io.Closer
 }
 type Upload struct {
