@@ -27,7 +27,7 @@ type QueryInput struct {
 	Variables     map[string]interface{} `json:"variables"`
 }
 
-// String returns a guarenteed unique string that can be used to identify the input
+// String returns a guaranteed unique string that can be used to identify the input
 func (i *QueryInput) String() string {
 	// let's just marshal the input
 	marshaled, err := json.Marshal(i)

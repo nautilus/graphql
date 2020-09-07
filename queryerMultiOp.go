@@ -22,7 +22,7 @@ type MultiOpQueryer struct {
 	loader  *dataloader.Loader
 }
 
-// NewMultiOpQueryer returns a MultiOpQueryer with the provided paramters
+// NewMultiOpQueryer returns a MultiOpQueryer with the provided parameters
 func NewMultiOpQueryer(url string, interval time.Duration, maxBatchSize int) *MultiOpQueryer {
 	queryer := &MultiOpQueryer{
 		MaxBatchSize:  maxBatchSize,
