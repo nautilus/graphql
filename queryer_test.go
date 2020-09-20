@@ -392,7 +392,7 @@ func TestQueryerWithMiddlewares(t *testing.T) {
 								return &http.Response{
 									StatusCode: http.StatusExpectationFailed,
 									// Send response to be tested
-									Body: ioutil.NopCloser(bytes.NewBufferString("Did not recieve the right header")),
+									Body: ioutil.NopCloser(bytes.NewBufferString("Did not receive the right header")),
 									// Must be set to non-nil value or it panics
 									Header: make(http.Header),
 								}

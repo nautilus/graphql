@@ -27,7 +27,7 @@ type QueryInput struct {
 	Variables     map[string]interface{} `json:"variables"`
 }
 
-// String returns a guarenteed unique string that can be used to identify the input
+// String returns a guaranteed unique string that can be used to identify the input
 func (i *QueryInput) String() string {
 	// let's just marshal the input
 	marshaled, err := json.Marshal(i)
@@ -121,6 +121,24 @@ func (q *NetworkQueryer) SendQuery(ctx context.Context, payload []byte) ([]byte,
 	acc := req.WithContext(ctx)
 	acc.Header.Set("Content-Type", "application/json")
 
+	return q.sendRequest(acc)
+}
+
+// SendMultipart is responsible for sending multipart request to the desingated URL
+func (q *NetworkQueryer) SendMultipart(ctx context.Context, payload []byte, contentType string) ([]byte, error) {
+	// construct the initial request we will send to the client
+	req, err := http.NewRequest("POST", q.URL, bytes.NewBuffer(payload))
+	if err != nil {
+		return nil, err
+	}
+	// add the current context to the request
+	acc := req.WithContext(ctx)
+	acc.Header.Set("Content-Type", contentType)
+
+	return q.sendRequest(acc)
+}
+
+func (q *NetworkQueryer) sendRequest(acc *http.Request) ([]byte, error) {
 	// we could have any number of middlewares that we have to go through so
 	for _, mware := range q.Middlewares {
 		err := mware(acc)

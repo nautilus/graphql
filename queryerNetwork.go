@@ -3,9 +3,8 @@ package graphql
 import (
 	"context"
 	"encoding/json"
-	"net/http"
-
 	"github.com/mitchellh/mapstructure"
+	"net/http"
 )
 
 // SingleRequestQueryer sends the query to a url and returns the response
@@ -43,6 +42,9 @@ func (q *SingleRequestQueryer) URL() string {
 
 // Query sends the query to the designated url and returns the response.
 func (q *SingleRequestQueryer) Query(ctx context.Context, input *QueryInput, receiver interface{}) error {
+	// check if query contains attached files
+	uploadMap := extractFiles(input)
+
 	// the payload
 	payload, err := json.Marshal(map[string]interface{}{
 		"query":         input.Query,
@@ -53,10 +55,24 @@ func (q *SingleRequestQueryer) Query(ctx context.Context, input *QueryInput, rec
 		return err
 	}
 
-	// send that query to the api and write the appropriate response to the receiver
-	response, err := q.queryer.SendQuery(ctx, payload)
-	if err != nil {
-		return err
+	var response []byte
+	if uploadMap.NotEmpty() {
+		body, contentType, err := prepareMultipart(payload, uploadMap)
+
+		responseBody, err := q.queryer.SendMultipart(ctx, body, contentType)
+		if err != nil {
+			return err
+		}
+
+		response = responseBody
+	} else {
+		// send that query to the api and write the appropriate response to the receiver
+		responseBody, err := q.queryer.SendQuery(ctx, payload)
+		if err != nil {
+			return err
+		}
+
+		response = responseBody
 	}
 
 	result := map[string]interface{}{}
