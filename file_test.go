@@ -19,6 +19,7 @@ func TestExtractFiles(t *testing.T) {
 	input := &QueryInput{
 		Variables: map[string]interface{}{
 			"stringParam": "hello world",
+			"listParam":   []interface{}{"one", "two"},
 			"someFile":    upload1,
 			"allFiles": []interface{}{
 				upload2,
@@ -36,6 +37,8 @@ func TestExtractFiles(t *testing.T) {
 	expected.Add(upload3, "allFiles.1")
 
 	assert.Equal(t, expected, actual)
+	assert.Equal(t, "hello world", input.Variables["stringParam"])
+	assert.Equal(t, []interface{}{"one", "two"}, input.Variables["listParam"])
 }
 
 func TestPrepareMultipart(t *testing.T) {

@@ -60,8 +60,8 @@ func extractFiles(input *QueryInput) *UploadMap {
 			for i, uploadVal := range valueTyped {
 				if upload, ok := uploadVal.(Upload); ok {
 					uploadMap.Add(upload, fmt.Sprintf("%s.%d", varName, i))
+					valueTyped[i] = nil
 				}
-				valueTyped[i] = nil
 			}
 			input.Variables[varName] = valueTyped
 		default:
