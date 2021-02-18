@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"reflect"
+	"strconv"
 
 	"github.com/vektah/gqlparser/v2/ast"
 )
@@ -163,6 +164,11 @@ func (q *NetworkQueryer) sendRequest(acc *http.Request) ([]byte, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	// check for HTTP errors
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		return body, errors.New("response was not successful with status code: " + strconv.Itoa(resp.StatusCode))
+	}
 
 	// we're done
 	return body, err
