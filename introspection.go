@@ -73,7 +73,7 @@ func IntrospectAPI(queryer Queryer) (*ast.Schema, error) {
 	}
 
 	// if we dont have a name on the response
-	if remoteSchema.QueryType.Name == "" {
+	if remoteSchema == nil || remoteSchema.QueryType.Name == "" {
 		return nil, errors.New("Could not find the root query")
 	}
 
