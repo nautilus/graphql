@@ -4,13 +4,80 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 
 	"github.com/vektah/gqlparser/v2/ast"
 )
 
+// IntrospectOptions represents the options for the IntrospectAPI function
+type IntrospectOptions struct {
+	wares  []NetworkMiddleware
+	client *http.Client
+	ctx    context.Context
+}
+
+// Context returns either a given context or an instance of the context.Background
+func (o *IntrospectOptions) Context() context.Context {
+	if o.ctx == nil {
+		return context.Background()
+	}
+	return o.ctx
+}
+
+// Apply applies the options to a given queryer
+func (o *IntrospectOptions) Apply(queryer Queryer) Queryer {
+	if q, ok := queryer.(QueryerWithMiddlewares); ok && len(o.wares) > 0 {
+		queryer = q.WithMiddlewares(o.wares)
+	}
+	if q, ok := queryer.(HTTPQueryer); ok && o.client != nil {
+		queryer = q.WithHTTPClient(o.client)
+	}
+	return queryer
+}
+
+func mergeIntrospectOptions(opts ...*IntrospectOptions) *IntrospectOptions {
+	res := &IntrospectOptions{}
+	for _, opt := range opts {
+		if len(opt.wares) > 0 {
+			res.wares = append(res.wares, opt.wares...)
+		}
+		if opt.client != nil {
+			res.client = opt.client
+		}
+		if opt.ctx != nil {
+			res.ctx = opt.ctx
+		}
+	}
+	return res
+}
+
+// IntrospectWithMiddlewares returns an instance of graphql.IntrospectOptions with given middlewares
+// to be pass to an instance of a graphql.Queryer by the IntrospectOptions.Apply function
+func IntrospectWithMiddlewares(wares ...NetworkMiddleware) *IntrospectOptions {
+	return &IntrospectOptions{
+		wares: wares,
+	}
+}
+
+// IntrospectWithHTTPClient returns an instance of graphql.IntrospectOptions with given client
+// to be pass to an instance of a graphql.Queryer by the IntrospectOptions.Apply function
+func IntrospectWithHTTPClient(client *http.Client) *IntrospectOptions {
+	return &IntrospectOptions{
+		client: client,
+	}
+}
+
+// IntrospectWithHTTPClient returns an instance of graphql.IntrospectOptions with given context
+// to be used as a parameter for graphql.Queryer.Query function in the graphql.IntrospectAPI function
+func IntrospectWithContext(ctx context.Context) *IntrospectOptions {
+	return &IntrospectOptions{
+		ctx: ctx,
+	}
+}
+
 // IntrospectRemoteSchema is used to build a RemoteSchema by firing the introspection query
 // at a remote service and reconstructing the schema object from the response
-func IntrospectRemoteSchema(url string) (*RemoteSchema, error) {
+func IntrospectRemoteSchema(url string, opts ...*IntrospectOptions) (*RemoteSchema, error) {
 
 	// introspect the schema at the designated url
 	schema, err := IntrospectAPI(NewSingleRequestQueryer(url))
@@ -27,12 +94,18 @@ func IntrospectRemoteSchema(url string) (*RemoteSchema, error) {
 // IntrospectRemoteSchemas takes a list of URLs and creates a RemoteSchema by invoking
 // graphql.IntrospectRemoteSchema at that location.
 func IntrospectRemoteSchemas(urls ...string) ([]*RemoteSchema, error) {
+	return IntrospectRemoteSchemasWithOptions(urls)
+}
+
+// IntrospectRemoteSchemasWithOptions takes a list of URLs and an optional list of graphql.IntrospectionOptions
+// and creates a RemoteSchema by invoking graphql.IntrospectRemoteSchema at that location.
+func IntrospectRemoteSchemasWithOptions(urls []string, opts ...*IntrospectOptions) ([]*RemoteSchema, error) {
 	// build up the list of remote schemas
 	schemas := []*RemoteSchema{}
 
 	for _, service := range urls {
 		// introspect the locations
-		schema, err := IntrospectRemoteSchema(service)
+		schema, err := IntrospectRemoteSchema(service, opts...)
 		if err != nil {
 			return nil, err
 		}
@@ -46,7 +119,11 @@ func IntrospectRemoteSchemas(urls ...string) ([]*RemoteSchema, error) {
 
 // IntrospectAPI send the introspection query to a Queryer and builds up the
 // schema object described by the result
-func IntrospectAPI(queryer Queryer) (*ast.Schema, error) {
+func IntrospectAPI(queryer Queryer, opts ...*IntrospectOptions) (*ast.Schema, error) {
+	// apply the options to the given queryer
+	opt := mergeIntrospectOptions(opts...)
+	queryer = opt.Apply(queryer)
+
 	// a place to hold the result of firing the introspection query
 	result := IntrospectionQueryResult{}
 
@@ -56,7 +133,7 @@ func IntrospectAPI(queryer Queryer) (*ast.Schema, error) {
 	}
 
 	// fire the introspection query
-	err := queryer.Query(context.Background(), input, &result)
+	err := queryer.Query(opt.Context(), input, &result)
 	if err != nil {
 		return nil, err
 	}
