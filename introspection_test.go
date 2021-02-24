@@ -1,10 +1,14 @@
 package graphql
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/vektah/gqlparser/v2/ast"
 )
 
@@ -840,6 +844,162 @@ func TestIntrospectUnmarshalTypeDef(t *testing.T) {
 	for _, row := range table {
 		t.Run(row.Message, func(t *testing.T) {
 			assert.Equal(t, row.Expected, introspectionUnmarshalTypeRef(row.RemoteType), fmt.Sprintf("Desired type: %s", row.Message))
+		})
+	}
+}
+
+func TestIntrospectWithContext(t *testing.T) {
+	table := []struct {
+		Message string
+		Context context.Context
+	}{
+		{
+			Message: "nil context should return context.Background",
+			Context: nil,
+		},
+		{
+			Message: "non nil context should return same object",
+			Context: context.TODO(),
+		},
+	}
+	for _, row := range table {
+		t.Run(row.Message, func(t *testing.T) {
+			opt := IntrospectWithContext(row.Context)
+			if row.Context == nil {
+				assert.Equal(t, context.Background(), opt.Context())
+			} else {
+				assert.Equal(t, row.Context, opt.Context())
+			}
+		})
+	}
+}
+
+func TestIntrospectWithHTTPClient(t *testing.T) {
+	table := []struct {
+		Message string
+		Client  *http.Client
+	}{
+		{
+			Message: "nil client",
+			Client:  nil,
+		},
+		{
+			Message: "non nil client",
+			Client:  &http.Client{},
+		},
+	}
+	for _, row := range table {
+		t.Run(row.Message, func(t *testing.T) {
+			queryer := NewSingleRequestQueryer("foo")
+			opt := IntrospectWithHTTPClient(row.Client)
+			queryer = opt.Apply(queryer).(*SingleRequestQueryer)
+			assert.Equal(t, row.Client, queryer.queryer.Client)
+
+		})
+	}
+}
+
+func TestIntrospectWithMiddlewares(t *testing.T) {
+	table := []struct {
+		Message string
+		Wares   []NetworkMiddleware
+	}{
+		{
+			Message: "no midddlewares",
+			Wares:   nil,
+		},
+		{
+			Message: "2 middlewares",
+			Wares: []NetworkMiddleware{
+				func(r *http.Request) error { return nil },
+				func(r *http.Request) error { return nil },
+			},
+		},
+	}
+	for _, row := range table {
+		t.Run(row.Message, func(t *testing.T) {
+			queryer := NewSingleRequestQueryer("foo")
+			opt := IntrospectWithMiddlewares(row.Wares...)
+			queryer = opt.Apply(queryer).(*SingleRequestQueryer)
+			assert.Len(t, queryer.queryer.Middlewares, len(row.Wares))
+		})
+	}
+}
+
+func Test_mergeIntrospectOptions(t *testing.T) {
+	client1 := &http.Client{}
+	client2 := &http.Client{}
+	wares1 := []NetworkMiddleware{
+		func(r *http.Request) error { return errors.New("1.1") },
+		func(r *http.Request) error { return errors.New("1.2") },
+	}
+	wares2 := []NetworkMiddleware{
+		func(r *http.Request) error { return errors.New("2.1") },
+		func(r *http.Request) error { return errors.New("2.2") },
+	}
+	table := []struct {
+		Message  string
+		Options  []*IntrospectOptions
+		Expected IntrospectOptions
+	}{
+		{
+			Message:  "nil options",
+			Options:  nil,
+			Expected: IntrospectOptions{},
+		},
+		{
+			Message: "full case",
+			Options: []*IntrospectOptions{
+				IntrospectWithContext(context.TODO()),
+				IntrospectWithHTTPClient(client1),
+				IntrospectWithMiddlewares(wares1...),
+			},
+			Expected: IntrospectOptions{
+				client: client1,
+				wares:  wares1,
+				ctx:    context.TODO(),
+			},
+		},
+		{
+			Message: "use the latest given context",
+			Options: []*IntrospectOptions{
+				IntrospectWithContext(context.Background()),
+				IntrospectWithContext(context.TODO()),
+			},
+			Expected: IntrospectOptions{
+				ctx: context.TODO(),
+			},
+		},
+		{
+			Message: "use the latest given client",
+			Options: []*IntrospectOptions{
+				IntrospectWithHTTPClient(client1),
+				IntrospectWithHTTPClient(client2),
+			},
+			Expected: IntrospectOptions{
+				client: client2,
+			},
+		},
+		{
+			Message: "all middlewares",
+			Options: []*IntrospectOptions{
+				IntrospectWithMiddlewares(wares1...),
+				IntrospectWithMiddlewares(wares2...),
+			},
+			Expected: IntrospectOptions{
+				wares: append(wares1, wares2...),
+			},
+		},
+	}
+	for _, row := range table {
+		t.Run(row.Message, func(t *testing.T) {
+			opt := mergeIntrospectOptions(row.Options...)
+			assert.Equal(t, row.Expected.client, opt.client)
+			assert.Equal(t, row.Expected.ctx, opt.ctx)
+			require.Len(t, opt.wares, len(row.Expected.wares))
+			for i, ware := range row.Expected.wares {
+				assert.Equal(t, ware(nil), opt.wares[i](nil))
+			}
 		})
 	}
 }
