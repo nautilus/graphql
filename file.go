@@ -47,28 +47,50 @@ func (u *UploadMap) Add(upload Upload, varName string) {
 	})
 }
 
+// returns a map of file names to paths.
+// Used only in testing extractFiles
+func (u *UploadMap) uploads() map[string]string {
+	var result = make(map[string]string)
+
+	for _, attachment := range *u {
+		result[attachment.upload.FileName] = attachment.positions[0]
+	}
+
+	return result
+}
+
 // function extracts attached files and sets respective variables to null
 func extractFiles(input *QueryInput) *UploadMap {
 	uploadMap := &UploadMap{}
-
 	for varName, value := range input.Variables {
-		switch valueTyped := value.(type) {
-		case Upload:
-			uploadMap.Add(valueTyped, varName)
+		uploadMap.extract(value, varName)
+		if _, ok := value.(Upload); ok { //If the value was an upload, set the respective QueryInput variable to null
 			input.Variables[varName] = nil
-		case []interface{}:
-			for i, uploadVal := range valueTyped {
-				if upload, ok := uploadVal.(Upload); ok {
-					uploadMap.Add(upload, fmt.Sprintf("%s.%d", varName, i))
-					valueTyped[i] = nil
-				}
-			}
-			input.Variables[varName] = valueTyped
-		default:
-			//noop
 		}
 	}
 	return uploadMap
+}
+
+func (u *UploadMap) extract(value interface{}, path string) {
+	switch val := value.(type) {
+	case Upload: // Upload found
+		u.Add(val, path)
+	case map[string]interface{}:
+		for k, v := range val {
+			u.extract(v, fmt.Sprintf("%s.%s", path, k))
+			if _, ok := v.(Upload); ok { //If the value was an upload, set the respective QueryInput variable to null
+				val[k] = nil
+			}
+		}
+	case []interface{}:
+		for i, v := range val {
+			u.extract(v, fmt.Sprintf("%s.%d", path, i))
+			if _, ok := v.(Upload); ok { //If the value was an upload, set the respective QueryInput variable to null
+				val[i] = nil
+			}
+		}
+	}
+	return
 }
 
 func prepareMultipart(payload []byte, uploadMap *UploadMap) (body []byte, contentType string, err error) {
