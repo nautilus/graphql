@@ -15,6 +15,11 @@ func TestExtractFiles(t *testing.T) {
 	upload1 := Upload{nil, "file1"}
 	upload2 := Upload{nil, "file2"}
 	upload3 := Upload{nil, "file3"}
+	upload4 := Upload{nil, "file4"}
+	upload5 := Upload{nil, "file5"}
+	upload6 := Upload{nil, "file6"}
+	upload7 := Upload{nil, "file7"}
+	upload8 := Upload{nil, "file8"}
 
 	input := &QueryInput{
 		Variables: map[string]interface{}{
@@ -24,6 +29,30 @@ func TestExtractFiles(t *testing.T) {
 			"allFiles": []interface{}{
 				upload2,
 				upload3,
+			},
+			"input": map[string]interface{}{
+				"not-an-upload": true,
+				"files": []interface{}{
+					upload4,
+					upload5,
+				},
+			},
+			"these": map[string]interface{}{
+				"are": []interface{}{
+					upload6,
+					map[string]interface{}{
+						"some": map[string]interface{}{
+							"deeply": map[string]interface{}{
+								"nested": map[string]interface{}{
+									"uploads": []interface{}{
+										upload7,
+										upload8,
+									},
+								},
+							},
+						},
+					},
+				},
 			},
 			"integerParam": 10,
 		},
@@ -35,8 +64,13 @@ func TestExtractFiles(t *testing.T) {
 	expected.Add(upload1, "someFile")
 	expected.Add(upload2, "allFiles.0")
 	expected.Add(upload3, "allFiles.1")
+	expected.Add(upload4, "input.files.0")
+	expected.Add(upload5, "input.files.1")
+	expected.Add(upload6, "these.are.0")
+	expected.Add(upload7, "these.are.1.some.deeply.nested.uploads.0")
+	expected.Add(upload8, "these.are.1.some.deeply.nested.uploads.1")
 
-	assert.Equal(t, expected, actual)
+	assert.Equal(t, expected.uploads(), actual.uploads())
 	assert.Equal(t, "hello world", input.Variables["stringParam"])
 	assert.Equal(t, []interface{}{"one", "two"}, input.Variables["listParam"])
 }
