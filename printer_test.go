@@ -278,6 +278,33 @@ fragment Foo on User {
 				},
 			},
 		},
+		// json string arguments
+		{
+			`{
+  hello(json: "{\"foo\": \"bar\"}")
+}
+`,
+			&ast.QueryDocument{
+				Operations: ast.OperationList{&ast.OperationDefinition{
+					Operation: ast.Query,
+					SelectionSet: ast.SelectionSet{
+						&ast.Field{
+							Name: "hello",
+							Arguments: ast.ArgumentList{
+								{
+									Name: "json",
+									Value: &ast.Value{
+										Kind: ast.StringValue,
+										Raw:  "{\"foo\": \"bar\"}",
+									},
+								},
+							},
+						},
+					},
+				},
+				},
+			},
+		},
 		// int arguments
 		{
 			`{
