@@ -200,7 +200,9 @@ func IntrospectAPI(queryer Queryer, opts ...*IntrospectOptions) (*ast.Schema, er
 				}
 
 				// add the type to the union definition
-				storedType.Types = append(storedType.Types, possibleType.Name)
+				if remoteType.Name != storedType.Name {
+					storedType.Types = append(storedType.Types, possibleType.Name)
+				}
 
 				possibleTypeDef, ok := schema.Types[possibleType.Name]
 				if !ok {
@@ -277,10 +279,15 @@ func IntrospectAPI(queryer Queryer, opts ...*IntrospectOptions) (*ast.Schema, er
 
 		// save the directive definition to the schema
 		schema.Directives[directive.Name] = &ast.DirectiveDefinition{
+			Position:    &ast.Position{Src: &ast.Source{}},
 			Name:        directive.Name,
 			Description: directive.Description,
 			Arguments:   introspectionConvertArgList(directive.Args),
 			Locations:   locations,
+		}
+		switch directive.Name {
+		case "skip", "deprecated", "include":
+			schema.Directives[directive.Name].Position.Src.BuiltIn = true
 		}
 	}
 
@@ -334,7 +341,12 @@ func introspectionUnmarshalType(schemaType IntrospectionQueryFullType) *ast.Defi
 			})
 		}
 	}
-
+	switch schemaType.Name {
+	case "ID", "Int", "Float", "String", "Boolean",
+		"__Schema", "__Type", "__InputValue", "__TypeKind",
+		"__DirectiveLocation", "__Field", "__EnumValue", "__Directive":
+		definition.BuiltIn = true
+	}
 	return definition
 }
 
