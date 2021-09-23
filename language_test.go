@@ -205,7 +205,7 @@ func TestApplyFragments_mergesFragments(t *testing.T) {
 	if len(friendsSelection.SelectionSet) != 3 {
 		t.Errorf("Encountered the wrong number of selections under .friends: len = %v)", len(friendsSelection.SelectionSet))
 		for _, selection := range friendsSelection.SelectionSet {
-			field, _ := selection.(*CollectedField)
+			field, _ := selection.(*ast.Field)
 			t.Errorf("    %s", field.Name)
 		}
 		return

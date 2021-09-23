@@ -6,164 +6,107 @@ import (
 	"github.com/vektah/gqlparser/v2/ast"
 )
 
-// CollectedField is a representations of a field with the list of selection sets that
-// must be merged under that field.
-type CollectedField struct {
-	*ast.Field
-	NestedSelections []ast.SelectionSet
-}
-
-// CollectedFieldList is a list of CollectedField with utilities for retrieving them
-type CollectedFieldList []*CollectedField
-
-func getDisplayName(field *ast.Field) string {
-	if field.Alias != "" {
-		return field.Alias
-	}
-	return field.Name
-}
-
-func (c *CollectedFieldList) GetOrCreateForAlias(alias string, creator func() *CollectedField) *CollectedField {
-	// look for the field with the given alias
-	for _, field := range *c {
-		if field.Alias == alias {
-			return field
-		}
-	}
-
-	// if we didn't find a field with the chosen alias
-	new := creator()
-
-	// add the new field to the list
-	*c = append(*c, new)
-
-	return new
-}
-
 // ApplyFragments takes a list of selections and merges them into one, embedding any fragments it
 // runs into along the way
 func ApplyFragments(selectionSet ast.SelectionSet, fragmentDefs ast.FragmentDefinitionList) (ast.SelectionSet, error) {
-	// apply the fragments
-	collectedFields, err := collectFields([]ast.SelectionSet{selectionSet}, fragmentDefs)
-	if err != nil {
-		return nil, err
-	}
-
-	// turn the CollectedField list into a selection set
-	final := ast.SelectionSet{}
-	for _, collected := range *collectedFields {
-		final = append(final, collected.Field)
-	}
-
-	return final, nil
+	collectedFieldSet, err := newFieldSet(selectionSet, fragmentDefs)
+	return collectedFieldSet.ToSelectionSet(), err
 }
 
-func collectFields(sources []ast.SelectionSet, fragments ast.FragmentDefinitionList) (*CollectedFieldList, error) {
-	// a way to look up field definitions and the list of selections we need under that field
-	selectedFields := &CollectedFieldList{}
+// fieldSet is a unique set of fieldEntries. Adding an existing field with the same name (or alias) will merge the selectionSets.
+type fieldSet map[string]*fieldEntry
 
-	// each selection set we have to merge can contribute to selections for each field
-	for _, selectionSet := range sources {
-		for _, selection := range selectionSet {
-			// a selection can be one of 3 things: a field, a fragment reference, or an inline fragment
-			switch selection := selection.(type) {
+// fieldEntry is a set entry that generates a copy of the field with a new ast.SelectionSet
+type fieldEntry struct {
+	field        *ast.Field // Never modify the pointer Field value. Only copy-on-update when converting back to ast.SelectionSet.
+	selectionSet fieldSet
+}
 
-			// a selection could either have a collected field or a real one. either way, we need to add the selection
-			// set to the entry in the map
-			case *ast.Field, *CollectedField:
-				var selectedField *ast.Field
-				if field, ok := selection.(*ast.Field); ok {
-					selectedField = field
-				} else if collected, ok := selection.(*CollectedField); ok {
-					selectedField = collected.Field
-				}
+// Make creates a new ast.Field with this entry's new ast.SelectionSet
+func (e fieldEntry) Make() *ast.Field {
+	shallowCopyField := *e.field
+	shallowCopyField.SelectionSet = e.selectionSet.ToSelectionSet()
+	return &shallowCopyField
+}
 
-				// look up the entry in the field list for this field
-				collected := selectedFields.GetOrCreateForAlias(getDisplayName(selectedField), func() *CollectedField {
-					return &CollectedField{Field: selectedField}
-				})
+// newFieldSet converts an ast.SelectionSet into a unique set of ast.Fields by resolving all fragements.
+// The fieldSet can then convert back to a fully-resolved ast.SelectionSet.
+func newFieldSet(selectionSet ast.SelectionSet, fragments ast.FragmentDefinitionList) (fieldSet, error) {
+	set := make(fieldSet)
+	for _, selection := range selectionSet {
+		if err := set.Add(selection, fragments); err != nil {
+			return nil, err
+		}
+	}
+	return set, nil
+}
 
-				// add the fields selection set to the list
-				collected.NestedSelections = append(collected.NestedSelections, selectedField.SelectionSet)
+func (s fieldSet) Add(selection ast.Selection, fragments ast.FragmentDefinitionList) error {
+	switch selection := selection.(type) {
+	case *ast.Field:
+		key := selection.Name
+		if selection.Alias != "" {
+			key = selection.Alias
+		}
 
-			// fragment selections need to be unwrapped and added to the final selection
-			case *ast.InlineFragment, *ast.FragmentSpread:
-				var selectionSet ast.SelectionSet
+		entry, ok := s[key]
+		if !ok {
+			entry = &fieldEntry{
+				field:        selection,
+				selectionSet: make(fieldSet),
+			}
+			s[key] = entry
+		}
+		for _, subselect := range selection.SelectionSet {
+			if err := entry.selectionSet.Add(subselect, fragments); err != nil {
+				return err
+			}
+		}
 
-				// inline fragments
-				if inlineFragment, ok := selection.(*ast.InlineFragment); ok {
-					selectionSet = inlineFragment.SelectionSet
+	case *ast.InlineFragment:
+		// each field in the inline fragment needs to be added to the selection
+		for _, fragmentSelection := range selection.SelectionSet {
+			// add the selection from the field to our accumulator
+			if err := s.Add(fragmentSelection, fragments); err != nil {
+				return err
+			}
+		}
 
-					// fragment spread
-				} else if fragment, ok := selection.(*ast.FragmentSpread); ok {
-					// grab the definition for the fragment
-					definition := fragments.ForName(fragment.Name)
-					if definition == nil {
-						// this shouldn't happen since validation has already ran
-						return nil, fmt.Errorf("Could not find fragment definition: %s", fragment.Name)
-					}
+	// fragment selections need to be unwrapped and added to the final selection
+	case *ast.FragmentSpread:
+		// grab the definition for the fragment
+		definition := fragments.ForName(selection.Name)
+		if definition == nil {
+			// this shouldn't happen since validation has already ran
+			return fmt.Errorf("could not find fragment definition: %s", selection.Name)
+		}
 
-					selectionSet = definition.SelectionSet
-				}
-
-				// fields underneath the inline fragment could be fragments themselves
-				fields, err := collectFields([]ast.SelectionSet{selectionSet}, fragments)
-				if err != nil {
-					return nil, err
-				}
-
-				// each field in the inline fragment needs to be added to the selection
-				for _, fragmentSelection := range *fields {
-					// add the selection from the field to our accumulator
-					collected := selectedFields.GetOrCreateForAlias(getDisplayName(fragmentSelection.Field), func() *CollectedField {
-						return fragmentSelection
-					})
-
-					// add the fragment selection set to the list of selections for the field
-					collected.NestedSelections = append(collected.NestedSelections, fragmentSelection.SelectionSet)
-				}
+		// each field in the inline fragment needs to be added to the selection
+		for _, fragmentSelection := range definition.SelectionSet {
+			// add the selection from the field to our accumulator
+			if err := s.Add(fragmentSelection, fragments); err != nil {
+				return err
 			}
 		}
 	}
+	return nil
+}
 
-	// each selected field needs to be merged into a single selection set
-	for _, collected := range *selectedFields {
-		// compute the new selection set for this field
-		merged, err := collectFields(collected.NestedSelections, fragments)
-		if err != nil {
-			return nil, err
-		}
-
-		// if there are selections for the field we need to turn them into a selection set
-		selectionSet := ast.SelectionSet{}
-		for _, selection := range *merged {
-			selectionSet = append(selectionSet, selection.Field)
-		}
-
-		// save this selection set over the nested one
-		collected.SelectionSet = selectionSet
+func (s fieldSet) ToSelectionSet() ast.SelectionSet {
+	selectionSet := make(ast.SelectionSet, 0, len(s))
+	for _, entry := range s {
+		selectionSet = append(selectionSet, entry.Make())
 	}
-
-	// we're done
-	return selectedFields, nil
+	return selectionSet
 }
 
 func SelectedFields(source ast.SelectionSet) []*ast.Field {
-	// build up a list of fields
 	fields := []*ast.Field{}
-
-	// each source could contribute fields to this
 	for _, selection := range source {
-		// if we are selecting a field
-		switch selection := selection.(type) {
-		case *ast.Field:
-			fields = append(fields, selection)
-		case *CollectedField:
-			fields = append(fields, selection.Field)
+		if field, ok := selection.(*ast.Field); ok {
+			fields = append(fields, field)
 		}
 	}
-
-	// we're done
 	return fields
 }
 
