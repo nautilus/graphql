@@ -1,6 +1,7 @@
 package graphql
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -153,6 +154,13 @@ func TestApplyFragments_mergesFragments(t *testing.T) {
 	//			}
 	// 		}
 	// }
+
+	go func() { // Concurrently read 'selectionSet' alongside ApplyFragments() to trigger possible race conditions. https://github.com/nautilus/gateway/issues/154
+		_, err := json.Marshal(selectionSet)
+		if err != nil {
+			t.Error(err)
+		}
+	}()
 
 	// flatten the selection
 	finalSelection, err := ApplyFragments(selectionSet, fragmentDefinition)
