@@ -1,6 +1,7 @@
 package graphql
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -154,6 +155,13 @@ func TestApplyFragments_mergesFragments(t *testing.T) {
 	// 		}
 	// }
 
+	go func() { // Concurrently read 'selectionSet' alongside ApplyFragments() to trigger possible race conditions. https://github.com/nautilus/gateway/issues/154
+		_, err := json.Marshal(selectionSet)
+		if err != nil {
+			t.Error(err)
+		}
+	}()
+
 	// flatten the selection
 	finalSelection, err := ApplyFragments(selectionSet, fragmentDefinition)
 	if err != nil {
@@ -197,7 +205,7 @@ func TestApplyFragments_mergesFragments(t *testing.T) {
 	if len(friendsSelection.SelectionSet) != 3 {
 		t.Errorf("Encountered the wrong number of selections under .friends: len = %v)", len(friendsSelection.SelectionSet))
 		for _, selection := range friendsSelection.SelectionSet {
-			field, _ := selection.(*CollectedField)
+			field, _ := selection.(*ast.Field)
 			t.Errorf("    %s", field.Name)
 		}
 		return
