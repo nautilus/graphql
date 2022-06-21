@@ -38,7 +38,16 @@ func TestIntrospectAPI(t *testing.T) {
 			"deprecated": {
 				Name: "deprecated",
 				Arguments: ast.ArgumentDefinitionList{
-					{Name: "reason"},
+					{
+						Name: "reason",
+						Type: &ast.Type{
+							Position: &ast.Position{},
+						},
+					},
+				},
+				Locations: []ast.DirectiveLocation{},
+				Position: &ast.Position{
+					Src: &ast.Source{BuiltIn: true},
 				},
 			},
 		},

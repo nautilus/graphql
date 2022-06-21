@@ -431,7 +431,7 @@ type IntrospectionQueryDirective struct {
 	Name        string                    `json:"name"`
 	Description string                    `json:"description"`
 	Locations   []string                  `json:"locations"`
-	Args        []IntrospectionInputValue `json:"arg"`
+	Args        []IntrospectionInputValue `json:"args"`
 }
 
 type IntrospectionQueryRootType struct {
