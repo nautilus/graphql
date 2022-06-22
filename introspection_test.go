@@ -2,6 +2,7 @@ package graphql
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -11,6 +12,58 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/vektah/gqlparser/v2/ast"
 )
+
+func TestIntrospectAPI(t *testing.T) {
+	schema, err := IntrospectAPI(&mockJSONQueryer{
+		JSONResult: `{
+			"__schema": {
+				"queryType": {
+					"name": "Query"
+				},
+				"directives": [
+					{
+						"name": "deprecated",
+						"args": [
+							{"name": "reason"}
+						]
+					}
+				]
+			}
+		}`,
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, &ast.Schema{
+		Types: map[string]*ast.Definition{},
+		Directives: map[string]*ast.DirectiveDefinition{
+			"deprecated": {
+				Name: "deprecated",
+				Arguments: ast.ArgumentDefinitionList{
+					{
+						Name: "reason",
+						Type: &ast.Type{
+							Position: &ast.Position{},
+						},
+					},
+				},
+				Locations: []ast.DirectiveLocation{},
+				Position: &ast.Position{
+					Src: &ast.Source{BuiltIn: true},
+				},
+			},
+		},
+		PossibleTypes: map[string][]*ast.Definition{},
+		Implements:    map[string][]*ast.Definition{},
+	}, schema)
+}
+
+// mockJSONQueryer unmarshals the internal JSONResult into the receiver. Simulates the real queryer, just a bit.
+type mockJSONQueryer struct {
+	JSONResult string
+}
+
+func (q *mockJSONQueryer) Query(ctx context.Context, input *QueryInput, receiver interface{}) error {
+	return json.Unmarshal([]byte(q.JSONResult), receiver)
+}
 
 func TestIntrospectQuery_savesQueryType(t *testing.T) {
 	// introspect the api with a known response
