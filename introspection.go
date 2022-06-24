@@ -80,7 +80,7 @@ func IntrospectWithContext(ctx context.Context) *IntrospectOptions {
 func IntrospectRemoteSchema(url string, opts ...*IntrospectOptions) (*RemoteSchema, error) {
 
 	// introspect the schema at the designated url
-	schema, err := IntrospectAPI(NewSingleRequestQueryer(url))
+	schema, err := IntrospectAPI(NewSingleRequestQueryer(url), opts...)
 	if err != nil {
 		return nil, err
 	}
