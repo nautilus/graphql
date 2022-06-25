@@ -2,7 +2,6 @@ module github.com/nautilus/graphql
 
 require (
 	github.com/graph-gophers/dataloader v5.0.0+incompatible
-	github.com/graphql-go/graphql v0.7.10-0.20210411022516-8a92e977c10b
 	github.com/mitchellh/mapstructure v1.1.2
 	github.com/opentracing/opentracing-go v1.0.2 // indirect
 	github.com/stretchr/testify v1.4.0
