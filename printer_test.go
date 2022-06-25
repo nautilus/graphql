@@ -9,16 +9,17 @@ import (
 
 func TestPrintQuery(t *testing.T) {
 	table := []struct {
+		name     string
 		expected string
 		query    *ast.QueryDocument
 	}{
-		// single root field
 		{
-			`{
-  hello
+			name: "single root field",
+			expected: `query {
+	hello
 }
 `,
-			&ast.QueryDocument{
+			query: &ast.QueryDocument{
 				Operations: ast.OperationList{
 					&ast.OperationDefinition{
 						Operation: ast.Query,
@@ -31,13 +32,13 @@ func TestPrintQuery(t *testing.T) {
 				},
 			},
 		},
-		// variable values
 		{
-			`{
-  hello(foo: $foo)
+			name: "variable values",
+			expected: `query {
+	hello(foo: $foo)
 }
 `,
-			&ast.QueryDocument{
+			query: &ast.QueryDocument{
 				Operations: ast.OperationList{
 					&ast.OperationDefinition{
 						Operation: ast.Query,
@@ -59,13 +60,13 @@ func TestPrintQuery(t *testing.T) {
 				},
 			},
 		},
-		// directives
 		{
-			`{
-  hello @foo(bar: "baz")
+			name: "directives",
+			expected: `query {
+	hello @foo(bar: "baz")
 }
 `,
-			&ast.QueryDocument{
+			query: &ast.QueryDocument{
 				Operations: ast.OperationList{&ast.OperationDefinition{
 					Operation: ast.Query,
 					SelectionSet: ast.SelectionSet{
@@ -92,13 +93,14 @@ func TestPrintQuery(t *testing.T) {
 			},
 		},
 		{
-			`{
-  ... on User @foo {
-    hello
-  }
+			name: "directives",
+			expected: `query {
+	... on User @foo {
+		hello
+	}
 }
 `,
-			&ast.QueryDocument{
+			query: &ast.QueryDocument{
 				Operations: ast.OperationList{
 					&ast.OperationDefinition{
 						Operation: ast.Query,
@@ -121,14 +123,14 @@ func TestPrintQuery(t *testing.T) {
 				},
 			},
 		},
-		// multiple root fields
 		{
-			`{
-  hello
-  goodbye
+			name: "multiple root fields",
+			expected: `query {
+	hello
+	goodbye
 }
 `,
-			&ast.QueryDocument{
+			query: &ast.QueryDocument{
 				Operations: ast.OperationList{
 					&ast.OperationDefinition{
 						Operation: ast.Query,
@@ -144,15 +146,15 @@ func TestPrintQuery(t *testing.T) {
 				},
 			},
 		},
-		// selection set
 		{
-			`{
-  hello {
-    world
-  }
+			name: "selection set",
+			expected: `query {
+	hello {
+		world
+	}
 }
 `,
-			&ast.QueryDocument{
+			query: &ast.QueryDocument{
 				Operations: ast.OperationList{&ast.OperationDefinition{
 					Operation: ast.Query,
 					SelectionSet: ast.SelectionSet{
@@ -169,15 +171,15 @@ func TestPrintQuery(t *testing.T) {
 				},
 			},
 		},
-		// inline fragments
 		{
-			`{
-  ... on Foo {
-    hello
-  }
+			name: "inline fragments",
+			expected: `query {
+	... on Foo {
+		hello
+	}
 }
 `,
-			&ast.QueryDocument{
+			query: &ast.QueryDocument{
 				Operations: ast.OperationList{
 					&ast.OperationDefinition{
 						Operation: ast.Query,
@@ -195,17 +197,16 @@ func TestPrintQuery(t *testing.T) {
 				},
 			},
 		},
-		// fragments
 		{
-			`{
-  ...Foo
+			name: "fragments",
+			expected: `query {
+	... Foo
 }
-
 fragment Foo on User {
-  firstName
+	firstName
 }
 `,
-			&ast.QueryDocument{
+			query: &ast.QueryDocument{
 				Operations: ast.OperationList{
 					&ast.OperationDefinition{
 						Operation: ast.Query,
@@ -232,13 +233,13 @@ fragment Foo on User {
 				},
 			},
 		},
-		// alias
 		{
-			`{
-  bar: hello
+			name: "alias",
+			expected: `query {
+	bar: hello
 }
 `,
-			&ast.QueryDocument{
+			query: &ast.QueryDocument{
 				Operations: ast.OperationList{&ast.OperationDefinition{
 					Operation: ast.Query,
 					SelectionSet: ast.SelectionSet{
@@ -251,13 +252,13 @@ fragment Foo on User {
 				},
 			},
 		},
-		// string arguments
 		{
-			`{
-  hello(hello: "world")
+			name: "string arguments",
+			expected: `query {
+	hello(hello: "world")
 }
 `,
-			&ast.QueryDocument{
+			query: &ast.QueryDocument{
 				Operations: ast.OperationList{&ast.OperationDefinition{
 					Operation: ast.Query,
 					SelectionSet: ast.SelectionSet{
@@ -278,13 +279,13 @@ fragment Foo on User {
 				},
 			},
 		},
-		// json string arguments
 		{
-			`{
-  hello(json: "{\"foo\": \"bar\"}")
+			name: "json string arguments",
+			expected: `query {
+	hello(json: "{\"foo\": \"bar\"}")
 }
 `,
-			&ast.QueryDocument{
+			query: &ast.QueryDocument{
 				Operations: ast.OperationList{&ast.OperationDefinition{
 					Operation: ast.Query,
 					SelectionSet: ast.SelectionSet{
@@ -305,13 +306,13 @@ fragment Foo on User {
 				},
 			},
 		},
-		// int arguments
 		{
-			`{
-  hello(hello: 1)
+			name: "int arguments",
+			expected: `query {
+	hello(hello: 1)
 }
 `,
-			&ast.QueryDocument{
+			query: &ast.QueryDocument{
 				Operations: ast.OperationList{&ast.OperationDefinition{
 					Operation: ast.Query,
 					SelectionSet: ast.SelectionSet{
@@ -332,13 +333,13 @@ fragment Foo on User {
 				},
 			},
 		},
-		// boolean arguments
 		{
-			`{
-  hello(hello: true)
+			name: "boolean arguments",
+			expected: `query {
+	hello(hello: true)
 }
 `,
-			&ast.QueryDocument{
+			query: &ast.QueryDocument{
 				Operations: ast.OperationList{&ast.OperationDefinition{
 					Operation: ast.Query,
 					SelectionSet: ast.SelectionSet{
@@ -359,13 +360,13 @@ fragment Foo on User {
 				},
 			},
 		},
-		// variable arguments
 		{
-			`{
-  hello(hello: $hello)
+			name: "variable arguments",
+			expected: `query {
+	hello(hello: $hello)
 }
 `,
-			&ast.QueryDocument{
+			query: &ast.QueryDocument{
 				Operations: ast.OperationList{&ast.OperationDefinition{
 					Operation: ast.Query,
 					SelectionSet: ast.SelectionSet{
@@ -386,13 +387,13 @@ fragment Foo on User {
 				},
 			},
 		},
-		// null arguments
 		{
-			`{
-  hello(hello: null)
+			name: "null arguments",
+			expected: `query {
+	hello(hello: null)
 }
 `,
-			&ast.QueryDocument{
+			query: &ast.QueryDocument{
 				Operations: ast.OperationList{&ast.OperationDefinition{
 					Operation: ast.Query,
 					SelectionSet: ast.SelectionSet{
@@ -402,6 +403,7 @@ fragment Foo on User {
 								{
 									Name: "hello",
 									Value: &ast.Value{
+										Raw:  "null",
 										Kind: ast.NullValue,
 									},
 								},
@@ -412,13 +414,13 @@ fragment Foo on User {
 				},
 			},
 		},
-		// float arguments
 		{
-			`{
-  hello(hello: 1.1)
+			name: "float arguments",
+			expected: `query {
+	hello(hello: 1.1)
 }
 `,
-			&ast.QueryDocument{
+			query: &ast.QueryDocument{
 				Operations: ast.OperationList{&ast.OperationDefinition{
 					Operation: ast.Query,
 					SelectionSet: ast.SelectionSet{
@@ -439,13 +441,13 @@ fragment Foo on User {
 				},
 			},
 		},
-		// enum arguments
 		{
-			`{
-  hello(hello: Hello)
+			name: "enum arguments",
+			expected: `query {
+	hello(hello: Hello)
 }
 `,
-			&ast.QueryDocument{
+			query: &ast.QueryDocument{
 				Operations: ast.OperationList{&ast.OperationDefinition{
 					Operation: ast.Query,
 					SelectionSet: ast.SelectionSet{
@@ -466,13 +468,13 @@ fragment Foo on User {
 				},
 			},
 		},
-		// list arguments
 		{
-			`{
-  hello(hello: ["hello", 1])
+			name: "list arguments",
+			expected: `query {
+	hello(hello: ["hello",1])
 }
 `,
-			&ast.QueryDocument{
+			query: &ast.QueryDocument{
 				Operations: ast.OperationList{&ast.OperationDefinition{
 					Operation: ast.Query,
 					SelectionSet: ast.SelectionSet{
@@ -506,13 +508,13 @@ fragment Foo on User {
 				},
 			},
 		},
-		// object arguments
 		{
-			`{
-  hello(hello: {hello: "hello", goodbye: 1})
+			name: "object arguments",
+			expected: `query {
+	hello(hello: {hello:"hello",goodbye:1})
 }
 `,
-			&ast.QueryDocument{
+			query: &ast.QueryDocument{
 				Operations: ast.OperationList{&ast.OperationDefinition{
 					Operation: ast.Query,
 					SelectionSet: ast.SelectionSet{
@@ -548,13 +550,13 @@ fragment Foo on User {
 				},
 			},
 		},
-		// multiple arguments
 		{
-			`{
-  hello(hello: "world", goodbye: "moon")
+			name: "multiple arguments",
+			expected: `query {
+	hello(hello: "world", goodbye: "moon")
 }
 `,
-			&ast.QueryDocument{
+			query: &ast.QueryDocument{
 				Operations: ast.OperationList{&ast.OperationDefinition{
 					Operation: ast.Query,
 					SelectionSet: ast.SelectionSet{
@@ -582,13 +584,13 @@ fragment Foo on User {
 				},
 			},
 		},
-		// anonymous variables to query
 		{
-			`query ($id: ID!) {
-  hello
+			name: "anonymous variables to query",
+			expected: `query ($id: ID!) {
+	hello
 }
 `,
-			&ast.QueryDocument{
+			query: &ast.QueryDocument{
 				Operations: ast.OperationList{&ast.OperationDefinition{
 					Operation: ast.Query,
 					SelectionSet: ast.SelectionSet{
@@ -609,13 +611,13 @@ fragment Foo on User {
 				},
 			},
 		},
-		// named query with variables
 		{
-			`query foo($id: String!) {
-  hello
+			name: "named query with variables",
+			expected: `query foo ($id: String!) {
+	hello
 }
 `,
-			&ast.QueryDocument{
+			query: &ast.QueryDocument{
 				Operations: ast.OperationList{&ast.OperationDefinition{
 					Operation: ast.Query,
 					Name:      "foo",
@@ -636,12 +638,14 @@ fragment Foo on User {
 				},
 				},
 			},
-		}, {
-			`query foo($id: [String]) {
-  hello
+		},
+		{
+			name: "named query with variables",
+			expected: `query foo ($id: [String]) {
+	hello
 }
 `,
-			&ast.QueryDocument{
+			query: &ast.QueryDocument{
 				Operations: ast.OperationList{&ast.OperationDefinition{
 					Operation: ast.Query,
 					Name:      "foo",
@@ -659,12 +663,14 @@ fragment Foo on User {
 				},
 				},
 			},
-		}, {
-			`query foo($id: [String!]) {
-  hello
+		},
+		{
+			name: "named query with variables",
+			expected: `query foo ($id: [String!]) {
+	hello
 }
 `,
-			&ast.QueryDocument{
+			query: &ast.QueryDocument{
 				Operations: ast.OperationList{&ast.OperationDefinition{
 					Operation: ast.Query,
 					Name:      "foo",
@@ -683,13 +689,13 @@ fragment Foo on User {
 				},
 			},
 		},
-		// single mutation field
 		{
-			`mutation {
-  hello
+			name: "single mutation field",
+			expected: `mutation {
+	hello
 }
 `,
-			&ast.QueryDocument{
+			query: &ast.QueryDocument{
 				Operations: ast.OperationList{&ast.OperationDefinition{
 					Operation: ast.Mutation,
 					SelectionSet: ast.SelectionSet{
@@ -701,13 +707,13 @@ fragment Foo on User {
 				},
 			},
 		},
-		// single subscription field
 		{
-			`subscription {
-  hello
+			name: "single subscription field",
+			expected: `subscription {
+	hello
 }
 `,
-			&ast.QueryDocument{
+			query: &ast.QueryDocument{
 				Operations: ast.OperationList{
 					&ast.OperationDefinition{
 						Operation: ast.Subscription,
@@ -723,11 +729,13 @@ fragment Foo on User {
 	}
 
 	for _, row := range table {
-		str, err := PrintQuery(row.query)
-		if err != nil {
-			t.Error(err.Error())
-		}
+		t.Run(row.name, func(t *testing.T) {
+			str, err := PrintQuery(row.query)
+			if err != nil {
+				t.Error(err.Error())
+			}
 
-		assert.Equal(t, row.expected, str)
+			assert.Equal(t, row.expected, str)
+		})
 	}
 }
