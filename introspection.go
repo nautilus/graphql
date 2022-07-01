@@ -199,15 +199,16 @@ func IntrospectAPI(queryer Queryer, opts ...*IntrospectOptions) (*ast.Schema, er
 					return nil, errors.New("Could not find name of type")
 				}
 
-				// add the type to the union definition
-				if remoteType.Name != storedType.Name {
-					storedType.Types = append(storedType.Types, possibleType.Name)
-				}
-
 				possibleTypeDef, ok := schema.Types[possibleType.Name]
 				if !ok {
 					return nil, errors.New("Could not find type definition for union implementation")
 				}
+
+				// skip the type, if the name equals the current one
+				if possibleType.Name == storedType.Name {
+					continue
+				}
+				storedType.Types = append(storedType.Types, possibleType.Name)
 
 				// add the possible type to the schema
 				schema.AddPossibleType(remoteType.Name, possibleTypeDef)
