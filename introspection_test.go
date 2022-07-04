@@ -391,6 +391,12 @@ func TestIntrospectQuery_unions(t *testing.T) {
 								Kind: "OBJECT",
 								Name: "Type1",
 							},
+							// ensure the type does not reference itself,
+							// however someone creates a situation where this actually happens (╯°□°)╯︵ ┻━┻
+							{
+								Kind: "UNION",
+								Name: "Maybe",
+							},
 							{
 								Kind: "OBJECT",
 								Name: "Type2",
@@ -420,14 +426,17 @@ func TestIntrospectQuery_unions(t *testing.T) {
 		return
 	}
 
-	// make sure the union matches epectations
+	const expectedTypes = 2
+
+	// make sure the union matches expectations
 	assert.Equal(t, "Maybe", union.Name)
 	assert.Equal(t, ast.Union, union.Kind)
 	assert.Equal(t, "Description", union.Description)
+	assert.Lenf(t, union.Types, expectedTypes, "union.Types should have %d elements", expectedTypes)
 
 	// make sure that the possible types for the Union match expectations
 	possibleTypes := schema.GetPossibleTypes(schema.Types["Maybe"])
-	if len(possibleTypes) != 2 {
+	if len(possibleTypes) != expectedTypes {
 		t.Errorf("Encountered the right number of possible types: %v", len(possibleTypes))
 		return
 	}
