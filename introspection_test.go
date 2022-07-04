@@ -56,6 +56,74 @@ func TestIntrospectAPI(t *testing.T) {
 	}, schema)
 }
 
+func TestIntrospectAPI_union(t *testing.T) {
+	schema, err := IntrospectAPI(&mockJSONQueryer{
+		JSONResult: `{
+			"__schema": {
+				"queryType": {
+					"name": "Query"
+				},
+				"types": [
+					{
+						"name": "Subtype1",
+						"kind": "OBJECT"
+					},
+					{
+						"name": "Subtype2",
+						"kind": "OBJECT"
+					},
+					{
+						"name": "TypeA",
+						"kind": "UNION",
+						"possibleTypes": [
+							{ "name": "Subtype1" },
+							{ "name": "Subtype2" }
+						]
+					}
+				]
+			}
+		}`,
+	})
+	assert.NoError(t, err)
+	var (
+		expectTypeA = &ast.Definition{
+			Name:   "TypeA",
+			Kind:   "UNION",
+			Types:  []string{"Subtype1", "Subtype2"},
+			Fields: ast.FieldList{},
+		}
+		expectSubtype1 = &ast.Definition{
+			Name:   "Subtype1",
+			Kind:   "OBJECT",
+			Fields: ast.FieldList{},
+		}
+		expectSubtype2 = &ast.Definition{
+			Name:   "Subtype2",
+			Kind:   "OBJECT",
+			Fields: ast.FieldList{},
+		}
+	)
+	assert.Equal(t, &ast.Schema{
+		Directives: map[string]*ast.DirectiveDefinition{},
+		Types: map[string]*ast.Definition{
+			"TypeA":    expectTypeA,
+			"Subtype1": expectSubtype1,
+			"Subtype2": expectSubtype2,
+		},
+		PossibleTypes: map[string][]*ast.Definition{
+			"TypeA": {
+				expectSubtype1,
+				expectSubtype2,
+			},
+		},
+		Implements: map[string][]*ast.Definition{
+			"Subtype1": {expectSubtype1, expectTypeA},
+			"Subtype2": {expectSubtype2, expectTypeA},
+			"TypeA":    {expectTypeA},
+		},
+	}, schema)
+}
+
 // mockJSONQueryer unmarshals the internal JSONResult into the receiver. Simulates the real queryer, just a bit.
 type mockJSONQueryer struct {
 	JSONResult string
