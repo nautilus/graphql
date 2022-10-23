@@ -1145,3 +1145,88 @@ func Test_mergeIntrospectOptions(t *testing.T) {
 		})
 	}
 }
+
+// mockJSONErrorQueryer unmarshals the internal JSONResult into the receiver. Simulates the real queryer, just a bit.
+type mockJSONErrorQueryer struct {
+	FailuresRemaining int
+	FailureErr        error
+	JSONResult        string
+}
+
+func (q *mockJSONErrorQueryer) Query(ctx context.Context, input *QueryInput, receiver interface{}) error {
+	if q.FailuresRemaining > 0 {
+		q.FailuresRemaining--
+		err := q.FailureErr
+		if err == nil {
+			err = errors.New("some error")
+		}
+		return err
+	}
+	return json.Unmarshal([]byte(q.JSONResult), receiver)
+}
+
+func TestIntrospectAPI_retry(t *testing.T) {
+	t.Parallel()
+	makeQueryer := func() *mockJSONErrorQueryer {
+		return &mockJSONErrorQueryer{
+			FailureErr: errors.New("foo"),
+			JSONResult: `{
+			"__schema": {
+				"queryType": {
+					"name": "Query"
+				},
+				"directives": [
+					{
+						"name": "deprecated",
+						"args": [
+							{"name": "reason"}
+						]
+					}
+				]
+			}
+		}`,
+		}
+	}
+
+	t.Run("no retrier", func(t *testing.T) {
+		t.Parallel()
+		queryer := makeQueryer()
+		queryer.FailuresRemaining = 1
+		_, err := IntrospectAPI(queryer)
+		assert.Zero(t, queryer.FailuresRemaining)
+		require.EqualError(t, err, "query failed: foo")
+		assert.ErrorIs(t, err, queryer.FailureErr)
+	})
+
+	t.Run("retry more than once", func(t *testing.T) {
+		t.Parallel()
+		queryer := makeQueryer()
+		queryer.FailuresRemaining = 10
+		schema, err := IntrospectAPI(queryer, IntrospectWithRetrier(NewCountRetrier(10)))
+		assert.Zero(t, queryer.FailuresRemaining)
+		assert.NoError(t, err)
+
+		assert.Equal(t, &ast.Schema{
+			Types: map[string]*ast.Definition{},
+			Directives: map[string]*ast.DirectiveDefinition{
+				"deprecated": {
+					Name: "deprecated",
+					Arguments: ast.ArgumentDefinitionList{
+						{
+							Name: "reason",
+							Type: &ast.Type{
+								Position: &ast.Position{},
+							},
+						},
+					},
+					Locations: []ast.DirectiveLocation{},
+					Position: &ast.Position{
+						Src: &ast.Source{BuiltIn: true},
+					},
+				},
+			},
+			PossibleTypes: map[string][]*ast.Definition{},
+			Implements:    map[string][]*ast.Definition{},
+		}, schema)
+	})
+}

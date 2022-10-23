@@ -2,10 +2,10 @@ package graphql
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 
+	"github.com/pkg/errors"
 	"github.com/vektah/gqlparser/v2/ast"
 )
 
@@ -15,9 +15,10 @@ type IntrospectOptions struct {
 	// If non-nil (i.e. created by an introspection func here), then sets its own options into opts.
 	mergeFunc func(opts *IntrospectOptions)
 
-	wares  []NetworkMiddleware
-	client *http.Client
-	ctx    context.Context
+	client  *http.Client
+	ctx     context.Context
+	retrier Retrier
+	wares   []NetworkMiddleware
 }
 
 // Context returns either a given context or an instance of the context.Background
@@ -83,6 +84,14 @@ func IntrospectWithContext(ctx context.Context) *IntrospectOptions {
 	})
 }
 
+// IntrospectWithRetrier returns an instance of graphql.IntrospectOptions with the given Retrier.
+// For a fixed number of retries, see CountRetrier.
+func IntrospectWithRetrier(retrier Retrier) *IntrospectOptions {
+	return introspectOptsFunc(func(opts *IntrospectOptions) {
+		opts.retrier = retrier
+	})
+}
+
 // IntrospectRemoteSchema is used to build a RemoteSchema by firing the introspection query
 // at a remote service and reconstructing the schema object from the response
 func IntrospectRemoteSchema(url string, opts ...*IntrospectOptions) (*RemoteSchema, error) {
@@ -132,16 +141,25 @@ func IntrospectAPI(queryer Queryer, opts ...*IntrospectOptions) (*ast.Schema, er
 	opt := mergeIntrospectOptions(opts...)
 	queryer = opt.Apply(queryer)
 
-	// a place to hold the result of firing the introspection query
-	result := IntrospectionQueryResult{}
-
-	input := &QueryInput{
-		Query:         IntrospectionQuery,
-		OperationName: "IntrospectionQuery",
+	query := func() (IntrospectionQueryResult, error) {
+		var result IntrospectionQueryResult
+		input := &QueryInput{
+			Query:         IntrospectionQuery,
+			OperationName: "IntrospectionQuery",
+		}
+		err := queryer.Query(opt.Context(), input, &result)
+		return result, errors.WithMessage(err, "query failed")
 	}
-
 	// fire the introspection query
-	err := queryer.Query(opt.Context(), input, &result)
+	result, err := query()
+	if opt.retrier != nil {
+		// if available, retry on failures
+		var attempts uint = 1
+		for err != nil && opt.retrier.ShouldRetry(err, attempts) {
+			result, err = query()
+			attempts++
+		}
+	}
 	if err != nil {
 		return nil, err
 	}
