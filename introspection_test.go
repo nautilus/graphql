@@ -1146,7 +1146,8 @@ func Test_mergeIntrospectOptions(t *testing.T) {
 	}
 }
 
-// mockJSONErrorQueryer unmarshals the internal JSONResult into the receiver. Simulates the real queryer, just a bit.
+// mockJSONErrorQueryer unmarshals the internal JSONResult into the receiver.
+// Like mockJSONQueryer but can return failures for X attempts.
 type mockJSONErrorQueryer struct {
 	FailuresRemaining int
 	FailureErr        error
