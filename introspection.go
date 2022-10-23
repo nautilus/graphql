@@ -2,18 +2,23 @@ package graphql
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 
+	"github.com/pkg/errors"
 	"github.com/vektah/gqlparser/v2/ast"
 )
 
 // IntrospectOptions represents the options for the IntrospectAPI function
 type IntrospectOptions struct {
-	wares  []NetworkMiddleware
-	client *http.Client
-	ctx    context.Context
+	// mergeFunc is an option-specific merger. This makes adding new options easier.
+	// If non-nil (i.e. created by an introspection func here), then sets its own options into opts.
+	mergeFunc func(opts *IntrospectOptions)
+
+	client  *http.Client
+	ctx     context.Context
+	retrier Retrier
+	wares   []NetworkMiddleware
 }
 
 // Context returns either a given context or an instance of the context.Background
@@ -38,14 +43,8 @@ func (o *IntrospectOptions) Apply(queryer Queryer) Queryer {
 func mergeIntrospectOptions(opts ...*IntrospectOptions) *IntrospectOptions {
 	res := &IntrospectOptions{}
 	for _, opt := range opts {
-		if len(opt.wares) > 0 {
-			res.wares = append(res.wares, opt.wares...)
-		}
-		if opt.client != nil {
-			res.client = opt.client
-		}
-		if opt.ctx != nil {
-			res.ctx = opt.ctx
+		if opt.mergeFunc != nil { // Verify non-nil. Previously did not require mergeFuncs. so could panic if client code uses raw "&IntrospectOptions{}".
+			opt.mergeFunc(res)
 		}
 	}
 	return res
@@ -55,6 +54,9 @@ func mergeIntrospectOptions(opts ...*IntrospectOptions) *IntrospectOptions {
 // to be pass to an instance of a graphql.Queryer by the IntrospectOptions.Apply function
 func IntrospectWithMiddlewares(wares ...NetworkMiddleware) *IntrospectOptions {
 	return &IntrospectOptions{
+		mergeFunc: func(opts *IntrospectOptions) {
+			opts.wares = append(opts.wares, wares...)
+		},
 		wares: wares,
 	}
 }
@@ -63,16 +65,31 @@ func IntrospectWithMiddlewares(wares ...NetworkMiddleware) *IntrospectOptions {
 // to be pass to an instance of a graphql.Queryer by the IntrospectOptions.Apply function
 func IntrospectWithHTTPClient(client *http.Client) *IntrospectOptions {
 	return &IntrospectOptions{
+		mergeFunc: func(opts *IntrospectOptions) {
+			opts.client = client
+		},
 		client: client,
 	}
+}
+
+func introspectOptsFunc(fn func(opts *IntrospectOptions)) *IntrospectOptions {
+	return &IntrospectOptions{mergeFunc: fn}
 }
 
 // IntrospectWithHTTPClient returns an instance of graphql.IntrospectOptions with given context
 // to be used as a parameter for graphql.Queryer.Query function in the graphql.IntrospectAPI function
 func IntrospectWithContext(ctx context.Context) *IntrospectOptions {
-	return &IntrospectOptions{
-		ctx: ctx,
-	}
+	return introspectOptsFunc(func(opts *IntrospectOptions) {
+		opts.ctx = ctx
+	})
+}
+
+// IntrospectWithRetrier returns an instance of graphql.IntrospectOptions with the given Retrier.
+// For a fixed number of retries, see CountRetrier.
+func IntrospectWithRetrier(retrier Retrier) *IntrospectOptions {
+	return introspectOptsFunc(func(opts *IntrospectOptions) {
+		opts.retrier = retrier
+	})
 }
 
 // IntrospectRemoteSchema is used to build a RemoteSchema by firing the introspection query
@@ -124,16 +141,25 @@ func IntrospectAPI(queryer Queryer, opts ...*IntrospectOptions) (*ast.Schema, er
 	opt := mergeIntrospectOptions(opts...)
 	queryer = opt.Apply(queryer)
 
-	// a place to hold the result of firing the introspection query
-	result := IntrospectionQueryResult{}
-
-	input := &QueryInput{
-		Query:         IntrospectionQuery,
-		OperationName: "IntrospectionQuery",
+	query := func() (IntrospectionQueryResult, error) {
+		var result IntrospectionQueryResult
+		input := &QueryInput{
+			Query:         IntrospectionQuery,
+			OperationName: "IntrospectionQuery",
+		}
+		err := queryer.Query(opt.Context(), input, &result)
+		return result, errors.WithMessage(err, "query failed")
 	}
-
 	// fire the introspection query
-	err := queryer.Query(opt.Context(), input, &result)
+	result, err := query()
+	if opt.retrier != nil {
+		// if available, retry on failures
+		var attempts uint = 1
+		for err != nil && opt.retrier.ShouldRetry(err, attempts) {
+			result, err = query()
+			attempts++
+		}
+	}
 	if err != nil {
 		return nil, err
 	}

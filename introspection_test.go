@@ -1057,6 +1057,7 @@ func TestIntrospectWithMiddlewares(t *testing.T) {
 }
 
 func Test_mergeIntrospectOptions(t *testing.T) {
+	t.Parallel()
 	client1 := &http.Client{}
 	client2 := &http.Client{}
 	wares1 := []NetworkMiddleware{
@@ -1075,6 +1076,15 @@ func Test_mergeIntrospectOptions(t *testing.T) {
 		{
 			Message:  "nil options",
 			Options:  nil,
+			Expected: IntrospectOptions{},
+		},
+		{
+			Message: "zero value",
+			Options: []*IntrospectOptions{
+				// Zero values. Was previously supported, so don't break back compatibility.
+				{},
+				{},
+			},
 			Expected: IntrospectOptions{},
 		},
 		{
@@ -1122,7 +1132,9 @@ func Test_mergeIntrospectOptions(t *testing.T) {
 		},
 	}
 	for _, row := range table {
+		row := row // enable parallel sub-tests
 		t.Run(row.Message, func(t *testing.T) {
+			t.Parallel()
 			opt := mergeIntrospectOptions(row.Options...)
 			assert.Equal(t, row.Expected.client, opt.client)
 			assert.Equal(t, row.Expected.ctx, opt.ctx)
@@ -1132,4 +1144,90 @@ func Test_mergeIntrospectOptions(t *testing.T) {
 			}
 		})
 	}
+}
+
+// mockJSONErrorQueryer unmarshals the internal JSONResult into the receiver.
+// Like mockJSONQueryer but can return failures for X attempts.
+type mockJSONErrorQueryer struct {
+	FailuresRemaining int
+	FailureErr        error
+	JSONResult        string
+}
+
+func (q *mockJSONErrorQueryer) Query(ctx context.Context, input *QueryInput, receiver interface{}) error {
+	if q.FailuresRemaining > 0 {
+		q.FailuresRemaining--
+		err := q.FailureErr
+		if err == nil {
+			err = errors.New("some error")
+		}
+		return err
+	}
+	return json.Unmarshal([]byte(q.JSONResult), receiver)
+}
+
+func TestIntrospectAPI_retry(t *testing.T) {
+	t.Parallel()
+	makeQueryer := func() *mockJSONErrorQueryer {
+		return &mockJSONErrorQueryer{
+			FailureErr: errors.New("foo"),
+			JSONResult: `{
+			"__schema": {
+				"queryType": {
+					"name": "Query"
+				},
+				"directives": [
+					{
+						"name": "deprecated",
+						"args": [
+							{"name": "reason"}
+						]
+					}
+				]
+			}
+		}`,
+		}
+	}
+
+	t.Run("no retrier", func(t *testing.T) {
+		t.Parallel()
+		queryer := makeQueryer()
+		queryer.FailuresRemaining = 1
+		_, err := IntrospectAPI(queryer)
+		assert.Zero(t, queryer.FailuresRemaining)
+		require.EqualError(t, err, "query failed: foo")
+		assert.ErrorIs(t, err, queryer.FailureErr)
+	})
+
+	t.Run("retry more than once", func(t *testing.T) {
+		t.Parallel()
+		queryer := makeQueryer()
+		queryer.FailuresRemaining = 10
+		schema, err := IntrospectAPI(queryer, IntrospectWithRetrier(NewCountRetrier(10)))
+		assert.Zero(t, queryer.FailuresRemaining)
+		assert.NoError(t, err)
+
+		assert.Equal(t, &ast.Schema{
+			Types: map[string]*ast.Definition{},
+			Directives: map[string]*ast.DirectiveDefinition{
+				"deprecated": {
+					Name: "deprecated",
+					Arguments: ast.ArgumentDefinitionList{
+						{
+							Name: "reason",
+							Type: &ast.Type{
+								Position: &ast.Position{},
+							},
+						},
+					},
+					Locations: []ast.DirectiveLocation{},
+					Position: &ast.Position{
+						Src: &ast.Source{BuiltIn: true},
+					},
+				},
+			},
+			PossibleTypes: map[string][]*ast.Definition{},
+			Implements:    map[string][]*ast.Definition{},
+		}, schema)
+	})
 }
