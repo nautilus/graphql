@@ -11,6 +11,10 @@ import (
 
 // IntrospectOptions represents the options for the IntrospectAPI function
 type IntrospectOptions struct {
+	// mergeFunc is an option-specific merger. This makes adding new options easier.
+	// If non-nil (i.e. created by an introspection func here), then sets its own options into opts.
+	mergeFunc func(opts *IntrospectOptions)
+
 	wares  []NetworkMiddleware
 	client *http.Client
 	ctx    context.Context
@@ -38,14 +42,8 @@ func (o *IntrospectOptions) Apply(queryer Queryer) Queryer {
 func mergeIntrospectOptions(opts ...*IntrospectOptions) *IntrospectOptions {
 	res := &IntrospectOptions{}
 	for _, opt := range opts {
-		if len(opt.wares) > 0 {
-			res.wares = append(res.wares, opt.wares...)
-		}
-		if opt.client != nil {
-			res.client = opt.client
-		}
-		if opt.ctx != nil {
-			res.ctx = opt.ctx
+		if opt.mergeFunc != nil { // Verify non-nil. Previously did not require mergeFuncs. so could panic if client code uses raw "&IntrospectOptions{}".
+			opt.mergeFunc(res)
 		}
 	}
 	return res
@@ -55,6 +53,9 @@ func mergeIntrospectOptions(opts ...*IntrospectOptions) *IntrospectOptions {
 // to be pass to an instance of a graphql.Queryer by the IntrospectOptions.Apply function
 func IntrospectWithMiddlewares(wares ...NetworkMiddleware) *IntrospectOptions {
 	return &IntrospectOptions{
+		mergeFunc: func(opts *IntrospectOptions) {
+			opts.wares = append(opts.wares, wares...)
+		},
 		wares: wares,
 	}
 }
@@ -63,16 +64,23 @@ func IntrospectWithMiddlewares(wares ...NetworkMiddleware) *IntrospectOptions {
 // to be pass to an instance of a graphql.Queryer by the IntrospectOptions.Apply function
 func IntrospectWithHTTPClient(client *http.Client) *IntrospectOptions {
 	return &IntrospectOptions{
+		mergeFunc: func(opts *IntrospectOptions) {
+			opts.client = client
+		},
 		client: client,
 	}
+}
+
+func introspectOptsFunc(fn func(opts *IntrospectOptions)) *IntrospectOptions {
+	return &IntrospectOptions{mergeFunc: fn}
 }
 
 // IntrospectWithHTTPClient returns an instance of graphql.IntrospectOptions with given context
 // to be used as a parameter for graphql.Queryer.Query function in the graphql.IntrospectAPI function
 func IntrospectWithContext(ctx context.Context) *IntrospectOptions {
-	return &IntrospectOptions{
-		ctx: ctx,
-	}
+	return introspectOptsFunc(func(opts *IntrospectOptions) {
+		opts.ctx = ctx
+	})
 }
 
 // IntrospectRemoteSchema is used to build a RemoteSchema by firing the introspection query

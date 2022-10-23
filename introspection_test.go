@@ -1057,6 +1057,7 @@ func TestIntrospectWithMiddlewares(t *testing.T) {
 }
 
 func Test_mergeIntrospectOptions(t *testing.T) {
+	t.Parallel()
 	client1 := &http.Client{}
 	client2 := &http.Client{}
 	wares1 := []NetworkMiddleware{
@@ -1075,6 +1076,15 @@ func Test_mergeIntrospectOptions(t *testing.T) {
 		{
 			Message:  "nil options",
 			Options:  nil,
+			Expected: IntrospectOptions{},
+		},
+		{
+			Message: "zero value",
+			Options: []*IntrospectOptions{
+				// Zero values. Was previously supported, so don't break back compatibility.
+				{},
+				{},
+			},
 			Expected: IntrospectOptions{},
 		},
 		{
@@ -1122,7 +1132,9 @@ func Test_mergeIntrospectOptions(t *testing.T) {
 		},
 	}
 	for _, row := range table {
+		row := row // enable parallel sub-tests
 		t.Run(row.Message, func(t *testing.T) {
+			t.Parallel()
 			opt := mergeIntrospectOptions(row.Options...)
 			assert.Equal(t, row.Expected.client, opt.client)
 			assert.Equal(t, row.Expected.ctx, opt.ctx)
