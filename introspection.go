@@ -53,27 +53,23 @@ func mergeIntrospectOptions(opts ...*IntrospectOptions) *IntrospectOptions {
 // IntrospectWithMiddlewares returns an instance of graphql.IntrospectOptions with given middlewares
 // to be pass to an instance of a graphql.Queryer by the IntrospectOptions.Apply function
 func IntrospectWithMiddlewares(wares ...NetworkMiddleware) *IntrospectOptions {
-	return &IntrospectOptions{
-		mergeFunc: func(opts *IntrospectOptions) {
-			opts.wares = append(opts.wares, wares...)
-		},
-		wares: wares,
-	}
+	return introspectOptsFunc(func(opts *IntrospectOptions) {
+		opts.wares = append(opts.wares, wares...)
+	})
 }
 
 // IntrospectWithHTTPClient returns an instance of graphql.IntrospectOptions with given client
 // to be pass to an instance of a graphql.Queryer by the IntrospectOptions.Apply function
 func IntrospectWithHTTPClient(client *http.Client) *IntrospectOptions {
-	return &IntrospectOptions{
-		mergeFunc: func(opts *IntrospectOptions) {
-			opts.client = client
-		},
-		client: client,
-	}
+	return introspectOptsFunc(func(opts *IntrospectOptions) {
+		opts.client = client
+	})
 }
 
 func introspectOptsFunc(fn func(opts *IntrospectOptions)) *IntrospectOptions {
-	return &IntrospectOptions{mergeFunc: fn}
+	opts := &IntrospectOptions{mergeFunc: fn}
+	opts.mergeFunc(opts)
+	return opts
 }
 
 // IntrospectWithHTTPClient returns an instance of graphql.IntrospectOptions with given context
