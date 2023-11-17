@@ -1,6 +1,7 @@
 package graphql
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -10,7 +11,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/vektah/gqlparser/v2"
 	"github.com/vektah/gqlparser/v2/ast"
+	"github.com/vektah/gqlparser/v2/formatter"
 )
 
 func TestIntrospectAPI(t *testing.T) {
@@ -1230,4 +1233,135 @@ func TestIntrospectAPI_retry(t *testing.T) {
 			Implements:    map[string][]*ast.Definition{},
 		}, schema)
 	})
+}
+
+// Tests fix for https://github.com/nautilus/graphql/issues/35
+func TestIntrospectAPI_valid_interface_implementation(t *testing.T) {
+	t.Parallel()
+	schema, err := IntrospectAPI(&mockJSONQueryer{
+		JSONResult: `{
+			"__schema": {
+				"queryType": {
+					"name": "Query"
+				},
+				"types": [
+					{
+						"description": null,
+						"enumValues": [],
+						"fields": [
+							{
+								"args": [
+									{
+										"defaultValue": null,
+										"description": null,
+										"name": "id",
+										"type": {
+											"kind": "NON_NULL",
+											"name": null,
+											"ofType": {
+												"kind": "SCALAR",
+												"name": "ID",
+												"ofType": null
+											}
+										}
+									}
+								],
+								"deprecationReason": null,
+								"description": "Find a Node for the given ID. Use fragments to select additional fields.",
+								"isDeprecated": false,
+								"name": "node",
+								"type": {
+									"kind": "INTERFACE",
+									"name": "Node",
+									"ofType": null
+								}
+							}
+						],
+						"inputFields": [],
+						"interfaces": [],
+						"kind": "OBJECT",
+						"name": "Query",
+						"possibleTypes": []
+					},
+					{
+						"description": "A resource.",
+						"enumValues": [],
+						"fields": [
+							{
+								"args": [],
+								"deprecationReason": null,
+								"description": "The ID of this resource.",
+								"isDeprecated": false,
+								"name": "id",
+								"type": {
+									"kind": "NON_NULL",
+									"name": null,
+									"ofType": {
+										"kind": "SCALAR",
+										"name": "ID",
+										"ofType": null
+									}
+								}
+							}
+						],
+						"inputFields": [],
+						"interfaces": [
+							{
+								"kind": "INTERFACE",
+								"name": "Node",
+								"ofType": null
+							}
+						],
+						"kind": "OBJECT",
+						"name": "Resource",
+						"possibleTypes": []
+					},
+					{
+						"description": "Fetches an object given its ID.",
+						"enumValues": [],
+						"fields": [
+							{
+								"args": [],
+								"deprecationReason": null,
+								"description": "The globally unique object ID.",
+								"isDeprecated": false,
+								"name": "id",
+								"type": {
+									"kind": "NON_NULL",
+									"name": null,
+									"ofType": {
+										"kind": "SCALAR",
+										"name": "ID",
+										"ofType": null
+									}
+								}
+							}
+						],
+						"inputFields": [],
+						"interfaces": [],
+						"kind": "INTERFACE",
+						"name": "Node",
+						"possibleTypes": [
+							{
+								"kind": "INTERFACE",
+								"name": "Node",
+								"ofType": null
+							},
+							{
+								"kind": "OBJECT",
+								"name": "Resource",
+								"ofType": null
+							}
+						]
+					}
+				]
+			}
+		}`,
+	})
+	assert.NoError(t, err)
+
+	var schemaBuffer bytes.Buffer
+	formatter.NewFormatter(&schemaBuffer).FormatSchema(schema)
+	_, err = gqlparser.LoadSchema(&ast.Source{Name: "input.graphql", Input: schemaBuffer.String()})
+	assert.Nil(t, err, "Type should implement an interface without formatting/re-parsing failures.")
 }

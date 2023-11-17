@@ -211,7 +211,7 @@ func IntrospectAPI(queryer Queryer, opts ...*IntrospectOptions) (*ast.Schema, er
 
 		// if we are looking at an enum
 		if len(remoteType.PossibleTypes) > 0 {
-			// build up an empty list of types
+			// build up an empty list of union types
 			storedType.Types = []string{}
 
 			// each union value needs to be added to the list
@@ -230,7 +230,9 @@ func IntrospectAPI(queryer Queryer, opts ...*IntrospectOptions) (*ast.Schema, er
 				if possibleType.Name == storedType.Name {
 					continue
 				}
-				storedType.Types = append(storedType.Types, possibleType.Name)
+				if storedType.Kind == ast.Union {
+					storedType.Types = append(storedType.Types, possibleType.Name)
+				}
 
 				// add the possible type to the schema
 				schema.AddPossibleType(remoteType.Name, possibleTypeDef)
