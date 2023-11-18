@@ -208,6 +208,9 @@ func IntrospectAPI(queryer Queryer, opts ...*IntrospectOptions) (*ast.Schema, er
 
 		// make sure we record that a type implements itself
 		schema.AddImplements(remoteType.Name, storedType)
+		if storedType.Kind == ast.Object {
+			addPossibleTypeOnce(schema, remoteType.Name, storedType) // When evaluating matching fragments, Objects count as a possible type for themselves.
+		}
 
 		// if we are looking at an enum
 		if len(remoteType.PossibleTypes) > 0 {
@@ -235,7 +238,7 @@ func IntrospectAPI(queryer Queryer, opts ...*IntrospectOptions) (*ast.Schema, er
 				}
 
 				// add the possible type to the schema
-				schema.AddPossibleType(remoteType.Name, possibleTypeDef)
+				addPossibleTypeOnce(schema, remoteType.Name, possibleTypeDef)
 				schema.AddImplements(possibleType.Name, storedType)
 			}
 		}
@@ -258,7 +261,7 @@ func IntrospectAPI(queryer Queryer, opts ...*IntrospectOptions) (*ast.Schema, er
 				}
 
 				// add the possible type to the schema
-				schema.AddPossibleType(iFaceDef.Name, storedType)
+				addPossibleTypeOnce(schema, iFaceDef.Name, storedType)
 				schema.AddImplements(storedType.Name, iFaceDef)
 			}
 		}
@@ -318,6 +321,15 @@ func IntrospectAPI(queryer Queryer, opts ...*IntrospectOptions) (*ast.Schema, er
 
 	// we're done here
 	return schema, nil
+}
+
+func addPossibleTypeOnce(schema *ast.Schema, name string, definition *ast.Definition) {
+	for _, typ := range schema.PossibleTypes[name] {
+		if typ.Name == definition.Name {
+			return
+		}
+	}
+	schema.AddPossibleType(name, definition)
 }
 
 func introspectionConvertArgList(args []IntrospectionInputValue) ast.ArgumentDefinitionList {
