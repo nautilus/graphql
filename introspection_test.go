@@ -118,6 +118,12 @@ func TestIntrospectAPI_union(t *testing.T) {
 				expectSubtype1,
 				expectSubtype2,
 			},
+			"Subtype1": {
+				expectSubtype1,
+			},
+			"Subtype2": {
+				expectSubtype2,
+			},
 		},
 		Implements: map[string][]*ast.Definition{
 			"Subtype1": {expectSubtype1, expectTypeA},
@@ -1364,4 +1370,151 @@ func TestIntrospectAPI_valid_interface_implementation(t *testing.T) {
 	formatter.NewFormatter(&schemaBuffer).FormatSchema(schema)
 	_, err = gqlparser.LoadSchema(&ast.Source{Name: "input.graphql", Input: schemaBuffer.String()})
 	assert.Nil(t, err, "Type should implement an interface without formatting/re-parsing failures.")
+}
+
+// Tests fix for https://github.com/nautilus/graphql/issues/37
+func TestIntrospectAPI_spread_fragment_on_interface(t *testing.T) {
+	t.Parallel()
+	schema, err := IntrospectAPI(&mockJSONQueryer{
+		JSONResult: `{
+			"__schema": {
+				"queryType": {
+					"name": "Query"
+				},
+				"types": [
+					{
+						"description": null,
+						"enumValues": [],
+						"fields": [
+							{
+								"args": [
+									{
+										"defaultValue": null,
+										"description": null,
+										"name": "id",
+										"type": {
+											"kind": "NON_NULL",
+											"name": null,
+											"ofType": {
+												"kind": "SCALAR",
+												"name": "ID",
+												"ofType": null
+											}
+										}
+									}
+								],
+								"deprecationReason": null,
+								"description": "Find a Node for the given ID. Use fragments to select additional fields.",
+								"isDeprecated": false,
+								"name": "node",
+								"type": {
+									"kind": "INTERFACE",
+									"name": "Node",
+									"ofType": null
+								}
+							}
+						],
+						"inputFields": [],
+						"interfaces": [],
+						"kind": "OBJECT",
+						"name": "Query",
+						"possibleTypes": []
+					},
+					{
+						"description": "A resource.",
+						"enumValues": [],
+						"fields": [
+							{
+								"args": [],
+								"deprecationReason": null,
+								"description": "The ID of this resource.",
+								"isDeprecated": false,
+								"name": "id",
+								"type": {
+									"kind": "NON_NULL",
+									"name": null,
+									"ofType": {
+										"kind": "SCALAR",
+										"name": "ID",
+										"ofType": null
+									}
+								}
+							}
+						],
+						"inputFields": [],
+						"interfaces": [
+							{
+								"kind": "INTERFACE",
+								"name": "Node",
+								"ofType": null
+							}
+						],
+						"kind": "OBJECT",
+						"name": "Resource",
+						"possibleTypes": []
+					},
+					{
+						"description": "Fetches an object given its ID.",
+						"enumValues": [],
+						"fields": [
+							{
+								"args": [],
+								"deprecationReason": null,
+								"description": "The globally unique object ID.",
+								"isDeprecated": false,
+								"name": "id",
+								"type": {
+									"kind": "NON_NULL",
+									"name": null,
+									"ofType": {
+										"kind": "SCALAR",
+										"name": "ID",
+										"ofType": null
+									}
+								}
+							}
+						],
+						"inputFields": [],
+						"interfaces": [],
+						"kind": "INTERFACE",
+						"name": "Node",
+						"possibleTypes": [
+							{
+								"kind": "INTERFACE",
+								"name": "Node",
+								"ofType": null
+							},
+							{
+								"kind": "OBJECT",
+								"name": "Resource",
+								"ofType": null
+							}
+						]
+					}
+				]
+			}
+		}`,
+	})
+	assert.NoError(t, err)
+
+	typeNames := func(defs []*ast.Definition) []string {
+		var names []string
+		for _, def := range defs {
+			names = append(names, def.Name)
+		}
+		return names
+	}
+	assert.Equal(t, []string{"Resource"}, typeNames(schema.GetPossibleTypes(schema.Types["Node"])))
+	assert.Equal(t, []string{"Resource"}, typeNames(schema.GetPossibleTypes(schema.Types["Resource"])))
+
+	_, err = gqlparser.LoadQuery(schema, `
+query {
+    node(id: "resource") {
+        ... on Resource {
+            id
+        }
+    }
+}
+`)
+	assert.Nil(t, err, "Spreading object fragment on matching interface should be allowed")
 }
