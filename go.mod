@@ -7,7 +7,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.8.0
 	github.com/vektah/gqlparser/v2 v2.0.1
-	golang.org/x/net v0.0.0-20190213061140-3a22650c66bd // indirect
+	golang.org/x/net v0.23.0 // indirect
 )
 
 go 1.13
