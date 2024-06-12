@@ -1,5 +1,7 @@
 module github.com/nautilus/graphql
 
+go 1.18
+
 require (
 	github.com/graph-gophers/dataloader v5.0.0+incompatible
 	github.com/mitchellh/mapstructure v1.1.2
@@ -9,5 +11,3 @@ require (
 	github.com/vektah/gqlparser/v2 v2.0.1
 	golang.org/x/net v0.23.0 // indirect
 )
-
-go 1.13
