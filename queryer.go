@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"strconv"
 
+	"github.com/tv42/httpunix"
 	"github.com/vektah/gqlparser/v2/ast"
 )
 
@@ -151,6 +152,12 @@ func (q *NetworkQueryer) sendRequest(acc *http.Request) ([]byte, error) {
 	// fire the response to the queryer's url
 	if q.Client == nil {
 		q.Client = &http.Client{}
+		// establish unix socket connection if specified
+		if acc.URL.Scheme == "http+unix" {
+			u := &httpunix.Transport{}
+			u.RegisterLocation(acc.URL.Host, acc.URL.Path)
+			q.Client.Transport = u
+		}
 	}
 
 	resp, err := q.Client.Do(acc)
