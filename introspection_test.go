@@ -3,6 +3,7 @@ package graphql
 import (
 	"bytes"
 	"context"
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -1033,7 +1034,6 @@ func TestIntrospectWithHTTPClient(t *testing.T) {
 			opt := IntrospectWithHTTPClient(row.Client)
 			queryer = opt.Apply(queryer).(*SingleRequestQueryer)
 			assert.Equal(t, row.Client, queryer.queryer.Client)
-
 		})
 	}
 }
@@ -1517,4 +1517,46 @@ query {
 }
 `)
 	assert.Nil(t, err, "Spreading object fragment on matching interface should be allowed")
+}
+
+//go:embed testdata/introspect_default_values.json
+var introspectionDefaultValuesJSON string
+
+// TestIntrospectDirectivesDefaultValue verifies fix for https://github.com/nautilus/graphql/issues/40
+func TestIntrospectDirectivesDefaultValue(t *testing.T) {
+	t.Parallel()
+
+	schema, err := IntrospectAPI(&mockJSONQueryer{
+		JSONResult: introspectionDefaultValuesJSON,
+	})
+	require.NoError(t, err)
+
+	var schemaBuffer bytes.Buffer
+	formatter.NewFormatter(&schemaBuffer).FormatSchema(schema)
+
+	expectedSchema, err := gqlparser.LoadSchema(&ast.Source{Input: `
+directive @hello(
+  foo: String! = "foo"
+  bar: Int = 1
+  baz: Boolean = true
+  biff: Float = 1.23
+  boo: [String] = ["boo"]
+  bah: HelloInput = {humbug: "humbug"}
+  blah: HelloEnum = HELLO_1
+) on FIELD_DEFINITION
+
+input HelloInput {
+  humbug: String
+}
+
+enum HelloEnum {
+  HELLO_1
+  HELLO_2
+  HELLO_3
+}
+	`})
+	require.NoError(t, err)
+	var expectedBuffer bytes.Buffer
+	formatter.NewFormatter(&expectedBuffer).FormatSchema(expectedSchema)
+	assert.Equal(t, expectedBuffer.String(), schemaBuffer.String())
 }
