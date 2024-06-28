@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/pkg/errors"
+	"github.com/vektah/gqlparser/v2"
 	"github.com/vektah/gqlparser/v2/ast"
 )
 
@@ -91,7 +92,6 @@ func IntrospectWithRetrier(retrier Retrier) *IntrospectOptions {
 // IntrospectRemoteSchema is used to build a RemoteSchema by firing the introspection query
 // at a remote service and reconstructing the schema object from the response
 func IntrospectRemoteSchema(url string, opts ...*IntrospectOptions) (*RemoteSchema, error) {
-
 	// introspect the schema at the designated url
 	schema, err := IntrospectAPI(NewSingleRequestQueryer(url), opts...)
 	if err != nil {
@@ -244,7 +244,6 @@ func IntrospectAPI(queryer Queryer, opts ...*IntrospectOptions) (*ast.Schema, er
 		}
 
 		if len(remoteType.Interfaces) > 0 {
-
 			// each interface value needs to be added to the list
 			for _, iFace := range remoteType.Interfaces {
 				// if there is no name
@@ -271,11 +270,15 @@ func IntrospectAPI(queryer Queryer, opts ...*IntrospectOptions) (*ast.Schema, er
 
 		for _, field := range remoteType.Fields {
 			// add the field to the list
+			args, err := introspectionConvertArgList(field.Args)
+			if err != nil {
+				return nil, err
+			}
 			fields = append(fields, &ast.FieldDefinition{
 				Name:        field.Name,
 				Type:        introspectionUnmarshalTypeRef(&field.Type),
 				Description: field.Description,
-				Arguments:   introspectionConvertArgList(field.Args),
+				Arguments:   args,
 			})
 		}
 
@@ -306,11 +309,15 @@ func IntrospectAPI(queryer Queryer, opts ...*IntrospectOptions) (*ast.Schema, er
 		}
 
 		// save the directive definition to the schema
+		args, err := introspectionConvertArgList(directive.Args)
+		if err != nil {
+			return nil, err
+		}
 		schema.Directives[directive.Name] = &ast.DirectiveDefinition{
 			Position:    &ast.Position{Src: &ast.Source{}},
 			Name:        directive.Name,
 			Description: directive.Description,
-			Arguments:   introspectionConvertArgList(directive.Args),
+			Arguments:   args,
 			Locations:   locations,
 		}
 		switch directive.Name {
@@ -332,19 +339,24 @@ func addPossibleTypeOnce(schema *ast.Schema, name string, definition *ast.Defini
 	schema.AddPossibleType(name, definition)
 }
 
-func introspectionConvertArgList(args []IntrospectionInputValue) ast.ArgumentDefinitionList {
+func introspectionConvertArgList(args []IntrospectionInputValue) (ast.ArgumentDefinitionList, error) {
 	result := ast.ArgumentDefinitionList{}
 
 	// we need to add each argument to the field
 	for _, argument := range args {
+		defaultValue, err := introspectionUnmarshalArgumentDefaultValue(argument)
+		if err != nil {
+			return nil, err
+		}
 		result = append(result, &ast.ArgumentDefinition{
-			Name:        argument.Name,
-			Description: argument.Description,
-			Type:        introspectionUnmarshalTypeRef(&argument.Type),
+			Name:         argument.Name,
+			Description:  argument.Description,
+			Type:         introspectionUnmarshalTypeRef(&argument.Type),
+			DefaultValue: defaultValue,
 		})
 	}
 
-	return result
+	return result, nil
 }
 
 func introspectionUnmarshalType(schemaType IntrospectionQueryFullType) *ast.Definition {
@@ -385,6 +397,29 @@ func introspectionUnmarshalType(schemaType IntrospectionQueryFullType) *ast.Defi
 		definition.BuiltIn = true
 	}
 	return definition
+}
+
+// introspectionUnmarshalArgumentDefaultValue returns the *ast.Value form of an argument's default value.
+//
+// The tricky part here is the default value comes in as a string, so it's non-trivial to unmarshal.
+// This takes advantage of gqlparser's loose validation when parsing an argument's default value even if the type is wrong (to avoid including full definitions of custom types).
+// This validation will likely become stricter with time -- hopefully the library will provide some additional tools to parse the default value separately.
+func introspectionUnmarshalArgumentDefaultValue(argument IntrospectionInputValue) (*ast.Value, error) {
+	if argument.DefaultValue == "" {
+		return nil, nil
+	}
+	const inputValueQuery = `
+type Query {
+	field(input: String = %s): String
+}
+`
+	schema, err := gqlparser.LoadSchema(&ast.Source{
+		Input: fmt.Sprintf(inputValueQuery, argument.DefaultValue),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return schema.Query.Fields.ForName("field").Arguments.ForName("input").DefaultValue, nil
 }
 
 // a mapping of marshaled directive locations to their parsed equivalent
