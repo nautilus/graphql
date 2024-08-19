@@ -94,5 +94,5 @@ func (q *SingleRequestQueryer) Query(ctx context.Context, input *QueryInput, rec
 	}
 
 	// finally extract errors, if any, and return them
-	return q.queryer.ExtractErrors(result)
+	return q.queryer.ExtractErrors(result) // TODO add unit tests!
 }
