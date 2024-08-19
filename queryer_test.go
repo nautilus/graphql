@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -115,7 +116,6 @@ func TestHTTPQueryerBasicCases(t *testing.T) {
 
 						// serialize the json we want to send back
 						marshaled, err := json.Marshal(result)
-
 						// if something went wrong
 						if err != nil {
 							return &http.Response{
@@ -250,7 +250,6 @@ func TestHTTPQueryerBasicCases(t *testing.T) {
 							assert.Nil(t, err)
 						}
 					})
-
 				}
 			})
 
@@ -433,4 +432,30 @@ func TestQueryerWithMiddlewares(t *testing.T) {
 			})
 		})
 	}
+}
+
+func TestNetworkQueryer_partial_success(t *testing.T) {
+	t.Parallel()
+	queryer := NewSingleRequestQueryer("someURL").WithHTTPClient(&http.Client{
+		Transport: roundTripFunc(func(*http.Request) *http.Response {
+			w := httptest.NewRecorder()
+			fmt.Fprint(w, `
+				{
+					"data": {
+						"foo": "bar"
+					},
+					"errors": [
+						{"message": "baz"}
+					]
+				}
+			`)
+			return w.Result()
+		}),
+	})
+	var result any
+	err := queryer.Query(context.Background(), &QueryInput{Query: "query { hello }"}, &result)
+	assert.Equal(t, map[string]any{
+		"foo": "bar",
+	}, result)
+	assert.EqualError(t, err, "baz")
 }
