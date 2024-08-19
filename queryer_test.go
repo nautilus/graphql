@@ -368,9 +368,10 @@ func TestQueryerWithMiddlewares(t *testing.T) {
 	for _, row := range queryerTable {
 		t.Run(row.name, func(t *testing.T) {
 			t.Run("Middleware Failures", func(t *testing.T) {
+				someErr := errors.New("This One")
 				queryer := row.queryer.WithMiddlewares([]NetworkMiddleware{
 					func(r *http.Request) error {
-						return errors.New("This One")
+						return someErr
 					},
 				})
 
@@ -381,13 +382,7 @@ func TestQueryerWithMiddlewares(t *testing.T) {
 
 				// fire the query
 				err := queryer.Query(context.Background(), input, &map[string]interface{}{})
-				if err == nil {
-					t.Error("Did not enounter an error when we should have")
-					return
-				}
-				if err.Error() != "This One" {
-					t.Errorf("Did not encountered expected error message: Expected 'This One', found %v", err.Error())
-				}
+				assert.ErrorIs(t, err, someErr)
 			})
 
 			t.Run("Middlware success", func(t *testing.T) {

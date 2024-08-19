@@ -73,11 +73,6 @@ func (q *MultiOpQueryer) Query(ctx context.Context, input *QueryInput, receiver 
 	}
 
 	// format the result as needed
-	err = q.queryer.ExtractErrors(unmarshaled)
-	if err != nil {
-		return err
-	}
-
 	// assign the result under the data key to the receiver
 	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
 		TagName: "json",
@@ -86,9 +81,11 @@ func (q *MultiOpQueryer) Query(ctx context.Context, input *QueryInput, receiver 
 	if err != nil {
 		return err
 	}
+	if err := decoder.Decode(unmarshaled["data"]); err != nil {
+		return err
+	}
 
-	// the only way for things to go wrong now happen while decoding
-	return decoder.Decode(unmarshaled["data"])
+	return q.queryer.ExtractErrors(unmarshaled)
 }
 
 func (q *MultiOpQueryer) loadQuery(ctx context.Context, keys dataloader.Keys) []*dataloader.Result {
