@@ -6,7 +6,6 @@ import (
 	"net/http"
 
 	"github.com/mitchellh/mapstructure"
-	"github.com/pkg/errors"
 )
 
 // SingleRequestQueryer sends the query to a url and returns the response
@@ -54,19 +53,16 @@ func (q *SingleRequestQueryer) Query(ctx context.Context, input *QueryInput, rec
 		"operationName": input.OperationName,
 	})
 	if err != nil {
-		return errors.WithMessage(err, "failed to marshal request")
+		return err
 	}
 
 	var response []byte
 	if uploadMap.NotEmpty() {
 		body, contentType, err := prepareMultipart(payload, uploadMap)
-		if err != nil {
-			return errors.WithMessage(err, "failed to prepare multipart request")
-		}
 
 		responseBody, err := q.queryer.SendMultipart(ctx, body, contentType)
 		if err != nil {
-			return errors.WithMessage(err, "failed to execute queryer.SendMultipart")
+			return err
 		}
 
 		response = responseBody
@@ -74,7 +70,7 @@ func (q *SingleRequestQueryer) Query(ctx context.Context, input *QueryInput, rec
 		// send that query to the api and write the appropriate response to the receiver
 		responseBody, err := q.queryer.SendQuery(ctx, payload)
 		if err != nil {
-			return errors.WithMessage(err, "failed to execute queryer.SendQuery")
+			return err
 		}
 
 		response = responseBody
@@ -82,7 +78,7 @@ func (q *SingleRequestQueryer) Query(ctx context.Context, input *QueryInput, rec
 
 	result := map[string]interface{}{}
 	if err = json.Unmarshal(response, &result); err != nil {
-		return errors.WithMessage(err, "failed to unmarshal response")
+		return err
 	}
 
 	// assign the result under the data key to the receiver
@@ -91,13 +87,12 @@ func (q *SingleRequestQueryer) Query(ctx context.Context, input *QueryInput, rec
 		Result:  receiver,
 	})
 	if err != nil {
-		return errors.WithMessage(err, "failed to create service response->full response decoder")
+		return err
 	}
 	if err = decoder.Decode(result["data"]); err != nil {
-		return errors.WithMessage(err, "failed to decode result data into full response")
+		return err
 	}
 
 	// finally extract errors, if any, and return them
-	err := q.queryer.ExtractErrors(result)
-	return errors.WithMessage(err, "found errors in response or failed to extract errors")
+	return q.queryer.ExtractErrors(result)
 }

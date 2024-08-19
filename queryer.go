@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
-	"io"
+	"errors"
+	"io/ioutil"
 	"net/http"
 	"reflect"
+	"strconv"
 
-	"github.com/pkg/errors"
 	"github.com/vektah/gqlparser/v2/ast"
 )
 
@@ -141,10 +141,10 @@ func (q *NetworkQueryer) SendMultipart(ctx context.Context, payload []byte, cont
 
 func (q *NetworkQueryer) sendRequest(acc *http.Request) ([]byte, error) {
 	// we could have any number of middlewares that we have to go through so
-	for index, mware := range q.Middlewares {
+	for _, mware := range q.Middlewares {
 		err := mware(acc)
 		if err != nil {
-			return nil, errors.WithMessagef(err, "network middleware index %d failed", index)
+			return nil, err
 		}
 	}
 
@@ -155,23 +155,23 @@ func (q *NetworkQueryer) sendRequest(acc *http.Request) ([]byte, error) {
 
 	resp, err := q.Client.Do(acc)
 	if err != nil {
-		return nil, errors.WithMessage(err, "failed to execute request")
+		return nil, err
 	}
 
 	// read the full body
-	body, err := io.ReadAll(resp.Body)
+	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return nil, errors.WithMessage(err, "failed to read body")
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	// check for HTTP errors
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return body, errors.Errorf("response was not successful with status code: %d", resp.StatusCode)
+		return body, errors.New("response was not successful with status code: " + strconv.Itoa(resp.StatusCode))
 	}
 
 	// we're done
-	return body, nil
+	return body, err
 }
 
 // ExtractErrors takes the result from a remote query and writes it to the provided pointer
@@ -184,7 +184,7 @@ func (q *NetworkQueryer) ExtractErrors(result map[string]interface{}) error {
 		// build up a list of errors
 		errs, ok := result["errors"].([]interface{})
 		if !ok {
-			return fmt.Errorf("errors was not a list: %[1]T %[1]v", result["errors"])
+			return errors.New("errors was not a list")
 		}
 
 		// a list of error messages
