@@ -3,8 +3,9 @@ package graphql
 import (
 	"context"
 	"encoding/json"
-	"github.com/mitchellh/mapstructure"
 	"net/http"
+
+	"github.com/mitchellh/mapstructure"
 )
 
 // SingleRequestQueryer sends the query to a url and returns the response
@@ -80,11 +81,6 @@ func (q *SingleRequestQueryer) Query(ctx context.Context, input *QueryInput, rec
 		return err
 	}
 
-	// otherwise we have to copy the response onto the receiver
-	if err = q.queryer.ExtractErrors(result); err != nil {
-		return err
-	}
-
 	// assign the result under the data key to the receiver
 	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
 		TagName: "json",
@@ -93,7 +89,10 @@ func (q *SingleRequestQueryer) Query(ctx context.Context, input *QueryInput, rec
 	if err != nil {
 		return err
 	}
+	if err = decoder.Decode(result["data"]); err != nil {
+		return err
+	}
 
-	// the only way for things to go wrong now happen while decoding
-	return decoder.Decode(result["data"])
+	// finally extract errors, if any, and return them
+	return q.queryer.ExtractErrors(result)
 }
