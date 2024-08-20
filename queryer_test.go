@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -56,6 +57,22 @@ func TestQueryerFunc_failure(t *testing.T) {
 
 	// make sure we got the right error
 	assert.Equal(t, expected, err)
+}
+
+func TestQueryerFunc_partial_success(t *testing.T) {
+	t.Parallel()
+	someData := map[string]interface{}{"foo": "bar"}
+	someError := errors.New("baz")
+
+	queryer := QueryerFunc(func(*QueryInput) (interface{}, error) {
+		return someData, someError
+	})
+
+	result := map[string]interface{}{}
+
+	err := queryer.Query(context.Background(), &QueryInput{}, &result)
+	assert.ErrorIs(t, err, someError)
+	assert.Equal(t, someData, result)
 }
 
 func TestHTTPQueryerBasicCases(t *testing.T) {
@@ -115,7 +132,6 @@ func TestHTTPQueryerBasicCases(t *testing.T) {
 
 						// serialize the json we want to send back
 						marshaled, err := json.Marshal(result)
-
 						// if something went wrong
 						if err != nil {
 							return &http.Response{
@@ -250,7 +266,6 @@ func TestHTTPQueryerBasicCases(t *testing.T) {
 							assert.Nil(t, err)
 						}
 					})
-
 				}
 			})
 
@@ -353,9 +368,10 @@ func TestQueryerWithMiddlewares(t *testing.T) {
 	for _, row := range queryerTable {
 		t.Run(row.name, func(t *testing.T) {
 			t.Run("Middleware Failures", func(t *testing.T) {
+				someErr := errors.New("This One")
 				queryer := row.queryer.WithMiddlewares([]NetworkMiddleware{
 					func(r *http.Request) error {
-						return errors.New("This One")
+						return someErr
 					},
 				})
 
@@ -366,13 +382,7 @@ func TestQueryerWithMiddlewares(t *testing.T) {
 
 				// fire the query
 				err := queryer.Query(context.Background(), input, &map[string]interface{}{})
-				if err == nil {
-					t.Error("Did not enounter an error when we should have")
-					return
-				}
-				if err.Error() != "This One" {
-					t.Errorf("Did not encountered expected error message: Expected 'This One', found %v", err.Error())
-				}
+				assert.ErrorIs(t, err, someErr)
 			})
 
 			t.Run("Middlware success", func(t *testing.T) {
@@ -433,4 +443,30 @@ func TestQueryerWithMiddlewares(t *testing.T) {
 			})
 		})
 	}
+}
+
+func TestNetworkQueryer_partial_success(t *testing.T) {
+	t.Parallel()
+	queryer := NewSingleRequestQueryer("someURL").WithHTTPClient(&http.Client{
+		Transport: roundTripFunc(func(*http.Request) *http.Response {
+			w := httptest.NewRecorder()
+			fmt.Fprint(w, `
+				{
+					"data": {
+						"foo": "bar"
+					},
+					"errors": [
+						{"message": "baz"}
+					]
+				}
+			`)
+			return w.Result()
+		}),
+	})
+	var result any
+	err := queryer.Query(context.Background(), &QueryInput{Query: "query { hello }"}, &result)
+	assert.Equal(t, map[string]any{
+		"foo": "bar",
+	}, result)
+	assert.EqualError(t, err, "baz")
 }

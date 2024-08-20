@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/http/httptest"
 	"sync"
 	"testing"
 	"time"
@@ -100,4 +101,32 @@ func TestMultiOpQueryer_batchesRequests(t *testing.T) {
 	assert.Equal(t, map[string]interface{}{"nCalled": "1:1"}, result1)
 	assert.Equal(t, map[string]interface{}{"nCalled": "2:2"}, result2)
 	assert.Equal(t, map[string]interface{}{"nCalled": "2:2"}, result3)
+}
+
+func TestMultiOpQueryer_partial_success(t *testing.T) {
+	t.Parallel()
+	queryer := NewMultiOpQueryer("someURL", 1*time.Millisecond, 10).WithHTTPClient(&http.Client{
+		Transport: roundTripFunc(func(*http.Request) *http.Response {
+			w := httptest.NewRecorder()
+			fmt.Fprint(w, `
+				[
+					{
+						"data": {
+							"foo": "bar"
+						},
+						"errors": [
+							{"message": "baz"}
+						]
+					}
+				]
+			`)
+			return w.Result()
+		}),
+	})
+	var result any
+	err := queryer.Query(context.Background(), &QueryInput{Query: "query { hello }"}, &result)
+	assert.Equal(t, map[string]any{
+		"foo": "bar",
+	}, result)
+	assert.EqualError(t, err, "baz")
 }

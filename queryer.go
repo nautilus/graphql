@@ -93,16 +93,12 @@ type QueryerFunc func(*QueryInput) (interface{}, error)
 // Query invokes the provided function and writes the response to the receiver
 func (q QueryerFunc) Query(ctx context.Context, input *QueryInput, receiver interface{}) error {
 	// invoke the handler
-	response, err := q(input)
-	if err != nil {
-		return err
+	response, responseErr := q(input)
+	if response != nil {
+		// assume the mock is writing the same kind as the receiver
+		reflect.ValueOf(receiver).Elem().Set(reflect.ValueOf(response))
 	}
-
-	// assume the mock is writing the same kind as the receiver
-	reflect.ValueOf(receiver).Elem().Set(reflect.ValueOf(response))
-
-	// no errors
-	return nil
+	return responseErr // support partial success: always return the queryer error after setting the return data
 }
 
 type NetworkQueryer struct {
