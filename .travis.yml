@@ -4,13 +4,10 @@ sudo: required
 # setup language
 language: go
 go:
-  - "1.13"
+  - "1.25.x"
 
 install:
-  - go get
-    golang.org/x/tools/cmd/cover
-    github.com/mattn/goveralls
-    ./...
+  - go install github.com/mattn/goveralls@v0.0.12
 
 script:
   - go test -v -covermode=atomic -coverprofile=coverage.out -race ./...
