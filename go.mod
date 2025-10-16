@@ -3,8 +3,8 @@ module github.com/nautilus/graphql
 go 1.18
 
 require (
+	github.com/go-viper/mapstructure/v2 v2.4.0
 	github.com/graph-gophers/dataloader v5.0.0+incompatible
-	github.com/mitchellh/mapstructure v1.1.2
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.9.0
 	github.com/vektah/gqlparser/v2 v2.5.16

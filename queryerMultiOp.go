@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/go-viper/mapstructure/v2"
 	"github.com/graph-gophers/dataloader"
-	"github.com/mitchellh/mapstructure"
 )
 
 // MultiOpQueryer is a queryer that will batch subsequent query on some interval into a single network request
