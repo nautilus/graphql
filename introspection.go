@@ -314,15 +314,15 @@ func IntrospectAPI(queryer Queryer, opts ...*IntrospectOptions) (*ast.Schema, er
 			return nil, err
 		}
 		schema.Directives[directive.Name] = &ast.DirectiveDefinition{
-			Position:    &ast.Position{Src: &ast.Source{}},
+			Position: &ast.Position{
+				Src: &ast.Source{
+					BuiltIn: isBuiltInDirective(directive.Name),
+				},
+			},
 			Name:        directive.Name,
 			Description: directive.Description,
 			Arguments:   args,
 			Locations:   locations,
-		}
-		switch directive.Name {
-		case "skip", "deprecated", "include":
-			schema.Directives[directive.Name].Position.Src.BuiltIn = true
 		}
 	}
 
@@ -363,6 +363,7 @@ func introspectionUnmarshalType(schemaType IntrospectionQueryFullType) *ast.Defi
 	definition := &ast.Definition{
 		Name:        schemaType.Name,
 		Description: schemaType.Description,
+		BuiltIn:     isBuiltInType(schemaType.Name),
 	}
 
 	// the kind of type
@@ -389,12 +390,6 @@ func introspectionUnmarshalType(schemaType IntrospectionQueryFullType) *ast.Defi
 				Description: value.Description,
 			})
 		}
-	}
-	switch schemaType.Name {
-	case "ID", "Int", "Float", "String", "Boolean",
-		"__Schema", "__Type", "__InputValue", "__TypeKind",
-		"__DirectiveLocation", "__Field", "__EnumValue", "__Directive":
-		definition.BuiltIn = true
 	}
 	return definition
 }
