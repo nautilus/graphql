@@ -30,6 +30,13 @@ func (q *SingleRequestQueryer) WithMiddlewares(mwares []NetworkMiddleware) Query
 	return q
 }
 
+// WithResponseMiddlewares lets the user assign response middlewares to the queryer
+func (q *SingleRequestQueryer) WithResponseMiddlewares(mwares []ResponseMiddleware) Queryer {
+	q.queryer.ResponseMiddlewares = mwares
+
+	return q
+}
+
 // WithHTTPClient lets the user configure the underlying http client being used
 func (q *SingleRequestQueryer) WithHTTPClient(client *http.Client) Queryer {
 	q.queryer.Client = client
@@ -78,6 +85,11 @@ func (q *SingleRequestQueryer) Query(ctx context.Context, input *QueryInput, rec
 
 	result := map[string]interface{}{}
 	if err = json.Unmarshal(response, &result); err != nil {
+		return err
+	}
+
+	// let the response middlewares see the full response before we decode the data
+	if err = q.queryer.ApplyResponseMiddlewares(ctx, result); err != nil {
 		return err
 	}
 
