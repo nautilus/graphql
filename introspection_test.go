@@ -899,7 +899,7 @@ func TestDirectiveLocationMap_PreludeDirectives(t *testing.T) {
 	for _, directive := range doc.Directives {
 		for _, location := range directive.Locations {
 			mappedLocation, ok := directiveLocationMap[string(location)]
-			assert.True(t, ok, "directive %s location %s not found in directiveLocationMap", directive.Name, location)
+			assert.True(t, ok, "directive '%s' location '%s' not found in directiveLocationMap", directive.Name, location)
 			assert.Equal(t, location, mappedLocation)
 		}
 	}
