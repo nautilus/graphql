@@ -479,6 +479,8 @@ func init() {
 		"ENUM_VALUE":             ast.LocationEnumValue,
 		"INPUT_OBJECT":           ast.LocationInputObject,
 		"INPUT_FIELD_DEFINITION": ast.LocationInputFieldDefinition,
+		"VARIABLE_DEFINITION":    ast.LocationVariableDefinition,
+		"DIRECTIVE_DEFINITION":   ast.LocationDirectiveDefinition,
 	}
 }
 
