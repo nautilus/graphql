@@ -15,6 +15,7 @@ import (
 	"github.com/vektah/gqlparser/v2"
 	"github.com/vektah/gqlparser/v2/ast"
 	"github.com/vektah/gqlparser/v2/formatter"
+	"github.com/vektah/gqlparser/v2/validator"
 )
 
 func TestIntrospectAPI(t *testing.T) {
@@ -888,6 +889,19 @@ func TestIntrospectUnmarshalDirectiveLocation(t *testing.T) {
 		}
 
 		assert.Equal(t, []ast.DirectiveLocation{value, value}, result)
+	}
+}
+
+func TestDirectiveLocationMap_PreludeDirectives(t *testing.T) {
+	doc := validator.PreludeDocument()
+	require.NotEmpty(t, doc.Directives)
+
+	for _, directive := range doc.Directives {
+		for _, location := range directive.Locations {
+			mappedLocation, ok := directiveLocationMap[string(location)]
+			assert.True(t, ok, "directive %s location %s not found in directiveLocationMap", directive.Name, location)
+			assert.Equal(t, location, mappedLocation)
+		}
 	}
 }
 
