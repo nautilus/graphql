@@ -45,9 +45,34 @@ func (i *QueryInput) Raw() interface{} {
 	return i
 }
 
-// Queryer is a interface for objects that can perform
+// QueryResult contains response details from executing [Queryer.Query]
+type QueryResult struct {
+	Data       map[string]any `json:"data"`
+	Errors     *[]*Error      `json:"errors,omitempty"` // GraphQL spec (2025) requires "errors" is either null or non-empty
+	Extensions map[string]any `json:"extensions,omitempty"`
+}
+
+func (r QueryResult) extractErrors() error {
+	if r.Errors == nil {
+		return nil
+	}
+	var errs ErrorList
+	for _, err := range *r.Errors {
+		errs = append(errs, err)
+	}
+	return errs
+}
+
+// Queryer executes the request specified by 'query', then unmarshals into 'response' and returns any errors.
+//
+// Queryers must return both data and errors at the same time, which enables a Gateway to return partial successes.
+//
+// Response may be one of two pointer types:
+//
+//   - *map[string]any - Unmarshals the "data" response property only.
+//   - *QueryResult - Unmarshals multiple reponse details, including "data" and "extensions".
 type Queryer interface {
-	Query(context.Context, *QueryInput, interface{}) error
+	Query(ctx context.Context, query *QueryInput, response any) error
 }
 
 // NetworkMiddleware are functions can be passed to SingleRequestQueryer.WithMiddleware to affect its internal

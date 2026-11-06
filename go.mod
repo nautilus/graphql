@@ -1,6 +1,6 @@
 module github.com/nautilus/graphql
 
-go 1.25
+go 1.26
 
 require (
 	github.com/go-viper/mapstructure/v2 v2.4.0

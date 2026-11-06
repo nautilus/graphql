@@ -163,10 +163,6 @@ func TestHTTPQueryerBasicCases(t *testing.T) {
 						[]string{"hello"},
 					},
 					{
-						"Errors No messages",
-						[]map[string]interface{}{},
-					},
-					{
 						"Message not string",
 						[]map[string]interface{}{
 							{
@@ -389,4 +385,60 @@ func TestNetworkQueryer_partial_success(t *testing.T) {
 		"foo": "bar",
 	}, result)
 	assert.EqualError(t, err, "baz")
+}
+
+func TestQueryResult_extract_errors(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		description string
+		resultJSON  string
+		expect      error
+	}{
+		{
+			description: "no errors",
+			resultJSON: `{
+				"data": {
+					"foo": "bar"
+				}
+			}`,
+			expect: nil, // Required by GraphQL spec (2025), empty array not permitted.
+		},
+		{
+			description: "one error",
+			resultJSON: `{
+				"data": {
+					"foo": "bar"
+				},
+				"errors": [
+					{"message": "baz"}
+				]
+			}`,
+			expect: ErrorList{
+				&Error{Message: "baz"},
+			},
+		},
+		{
+			description: "multiple errors",
+			resultJSON: `{
+				"data": {
+					"foo": "bar"
+				},
+				"errors": [
+					{"message": "baz"},
+					{"message": "biff"}
+				]
+			}`,
+			expect: ErrorList{
+				&Error{Message: "baz"},
+				&Error{Message: "biff"},
+			},
+		},
+	} {
+		t.Run(tc.description, func(t *testing.T) {
+			t.Parallel()
+			var result QueryResult
+			require.NoError(t, json.Unmarshal([]byte(tc.resultJSON), &result))
+			assert.Equal(t, tc.expect, result.extractErrors())
+		})
+	}
 }

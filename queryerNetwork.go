@@ -42,16 +42,12 @@ func (q *SingleRequestQueryer) URL() string {
 }
 
 // Query sends the query to the designated url and returns the response.
-func (q *SingleRequestQueryer) Query(ctx context.Context, input *QueryInput, receiver interface{}) error {
+func (q *SingleRequestQueryer) Query(ctx context.Context, input *QueryInput, receiver any) error {
 	// check if query contains attached files
 	uploadMap := extractFiles(input)
 
 	// the payload
-	payload, err := json.Marshal(map[string]interface{}{
-		"query":         input.Query,
-		"variables":     input.Variables,
-		"operationName": input.OperationName,
-	})
+	payload, err := json.Marshal(input)
 	if err != nil {
 		return err
 	}
@@ -76,23 +72,26 @@ func (q *SingleRequestQueryer) Query(ctx context.Context, input *QueryInput, rec
 		response = responseBody
 	}
 
-	result := map[string]interface{}{}
+	var result QueryResult
 	if err = json.Unmarshal(response, &result); err != nil {
 		return err
 	}
 
-	// assign the result under the data key to the receiver
-	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
-		TagName: "json",
-		Result:  receiver,
-	})
-	if err != nil {
-		return err
+	switch receiver := receiver.(type) {
+	case *QueryResult:
+		*receiver = result
+		return result.extractErrors()
+	default:
+		decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
+			TagName: "json",
+			Result:  receiver,
+		})
+		if err != nil {
+			return err
+		}
+		if err = decoder.Decode(result.Data); err != nil {
+			return err
+		}
+		return result.extractErrors()
 	}
-	if err = decoder.Decode(result["data"]); err != nil {
-		return err
-	}
-
-	// finally extract errors, if any, and return them
-	return q.queryer.ExtractErrors(result) // TODO add unit tests!
 }
