@@ -1,26 +1,17 @@
 package graphql
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
-
-type roundTripFunc func(req *http.Request) *http.Response
-
-// RoundTrip .
-func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
-	return f(req), nil
-}
 
 func TestQueryerFunc_success(t *testing.T) {
 	expected := map[string]interface{}{"hello": "world"}
@@ -121,35 +112,15 @@ func TestHTTPQueryerBasicCases(t *testing.T) {
 					}
 				`
 
-				httpQueryer := row.queryer.WithHTTPClient(&http.Client{
-					Transport: roundTripFunc(func(req *http.Request) *http.Response {
-						var result interface{}
-						if row.wrapInList {
-							result = []map[string]interface{}{{"data": expected}}
-						} else {
-							result = map[string]interface{}{"data": expected}
-						}
-
-						// serialize the json we want to send back
-						marshaled, err := json.Marshal(result)
-						// if something went wrong
-						if err != nil {
-							return &http.Response{
-								StatusCode: 500,
-								Body:       ioutil.NopCloser(bytes.NewBufferString("Something went wrong")),
-								Header:     make(http.Header),
-							}
-						}
-
-						return &http.Response{
-							StatusCode: 200,
-							// Send response to be tested
-							Body: ioutil.NopCloser(bytes.NewBuffer(marshaled)),
-							// Must be set to non-nil value or it panics
-							Header: make(http.Header),
-						}
-					}),
-				})
+				httpQueryer := row.queryer.WithHTTPClient(testHTTPClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					var result interface{}
+					if row.wrapInList {
+						result = []map[string]interface{}{{"data": expected}}
+					} else {
+						result = map[string]interface{}{"data": expected}
+					}
+					require.NoError(t, json.NewEncoder(w).Encode(result))
+				})))
 
 				// get the response of the query
 				result := map[string]interface{}{}
@@ -218,42 +189,23 @@ func TestHTTPQueryerBasicCases(t *testing.T) {
 							}
 						`
 
-						queryer := row.queryer.WithHTTPClient(&http.Client{
-							Transport: roundTripFunc(func(req *http.Request) *http.Response {
-								response := map[string]interface{}{
-									"data": nil,
-								}
+						queryer := row.queryer.WithHTTPClient(testHTTPClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+							response := map[string]interface{}{
+								"data": nil,
+							}
 
-								// if we are supposed to have an error
-								if errorRow.ErrorShape != nil {
-									response["errors"] = errorRow.ErrorShape
-								}
+							// if we are supposed to have an error
+							if errorRow.ErrorShape != nil {
+								response["errors"] = errorRow.ErrorShape
+							}
 
-								var finalResponse interface{} = response
-								if row.wrapInList {
-									finalResponse = []map[string]interface{}{response}
-								}
+							var finalResponse interface{} = response
+							if row.wrapInList {
+								finalResponse = []map[string]interface{}{response}
+							}
 
-								// serialize the json we want to send back
-								result, err := json.Marshal(finalResponse)
-								// if something went wrong
-								if err != nil {
-									return &http.Response{
-										StatusCode: 500,
-										Body:       ioutil.NopCloser(bytes.NewBufferString("Something went wrong")),
-										Header:     make(http.Header),
-									}
-								}
-
-								return &http.Response{
-									StatusCode: 200,
-									// Send response to be tested
-									Body: ioutil.NopCloser(bytes.NewBuffer(result)),
-									// Must be set to non-nil value or it panics
-									Header: make(http.Header),
-								}
-							}),
-						})
+							require.NoError(t, json.NewEncoder(w).Encode(finalResponse))
+						})))
 
 						// get the response of the query
 						result := map[string]interface{}{}
@@ -279,27 +231,18 @@ func TestHTTPQueryerBasicCases(t *testing.T) {
 					}
 				`
 
-				queryer := row.queryer.WithHTTPClient(&http.Client{
-					Transport: roundTripFunc(func(req *http.Request) *http.Response {
-						response := `{
-							"data": null,
-							"errors": [
-								{"message":"hello"}
-							]
-						}`
-						if row.wrapInList {
-							response = fmt.Sprintf("[%s]", response)
-						}
-
-						return &http.Response{
-							StatusCode: 200,
-							// Send response to be tested
-							Body: ioutil.NopCloser(bytes.NewBuffer([]byte(response))),
-							// Must be set to non-nil value or it panics
-							Header: make(http.Header),
-						}
-					}),
-				})
+				queryer := row.queryer.WithHTTPClient(testHTTPClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					response := `{
+						"data": null,
+						"errors": [
+							{"message":"hello"}
+						]
+					}`
+					if row.wrapInList {
+						response = fmt.Sprintf("[%s]", response)
+					}
+					fmt.Fprint(w, response)
+				})))
 
 				// get the error of the query
 				err := queryer.Query(context.Background(), &QueryInput{Query: query}, &map[string]interface{}{})
@@ -324,16 +267,10 @@ func TestHTTPQueryerBasicCases(t *testing.T) {
 					}
 				`
 
-				queryer := row.queryer.WithHTTPClient(&http.Client{
-					Transport: roundTripFunc(func(req *http.Request) *http.Response {
-						// send an error back
-						return &http.Response{
-							StatusCode: 500,
-							Body:       ioutil.NopCloser(bytes.NewBufferString("Something went wrong")),
-							Header:     make(http.Header),
-						}
-					}),
-				})
+				queryer := row.queryer.WithHTTPClient(testHTTPClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusInternalServerError)
+					fmt.Fprint(w, "Something went wrong")
+				})))
 
 				// get the response of the query
 				var result interface{}
@@ -395,39 +332,26 @@ func TestQueryerWithMiddlewares(t *testing.T) {
 				})
 
 				if q, ok := queryer.(HTTPQueryerWithMiddlewares); ok {
-					queryer = q.WithHTTPClient(&http.Client{
-						Transport: roundTripFunc(func(req *http.Request) *http.Response {
-							// if we did not get the right header value
-							if req.Header.Get("Hello") != "World" {
-								return &http.Response{
-									StatusCode: http.StatusExpectationFailed,
-									// Send response to be tested
-									Body: ioutil.NopCloser(bytes.NewBufferString("Did not receive the right header")),
-									// Must be set to non-nil value or it panics
-									Header: make(http.Header),
-								}
-							}
+					queryer = q.WithHTTPClient(testHTTPClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						// if we did not get the right header value
+						if r.Header.Get("Hello") != "World" {
+							w.WriteHeader(http.StatusExpectationFailed)
+							fmt.Fprint(w, "Did not receive the right header")
+							return
+						}
 
-							// serialize the json we want to send back
-							result, _ := json.Marshal(map[string]interface{}{
-								"allUsers": []string{
-									"John Jacob",
-									"Jinglehymer Schmidt",
-								},
-							})
-							if row.wrapInList {
-								result = []byte(fmt.Sprintf("[%s]", string(result)))
-							}
-
-							return &http.Response{
-								StatusCode: 200,
-								// Send response to be tested
-								Body: ioutil.NopCloser(bytes.NewBuffer(result)),
-								// Must be set to non-nil value or it panics
-								Header: make(http.Header),
-							}
-						}),
-					})
+						// serialize the json we want to send back
+						var response any = map[string]any{
+							"allUsers": []string{
+								"John Jacob",
+								"Jinglehymer Schmidt",
+							},
+						}
+						if row.wrapInList {
+							response = []any{response}
+						}
+						require.NoError(t, json.NewEncoder(w).Encode(response))
+					})))
 				}
 
 				// the input to the query
@@ -447,22 +371,18 @@ func TestQueryerWithMiddlewares(t *testing.T) {
 
 func TestNetworkQueryer_partial_success(t *testing.T) {
 	t.Parallel()
-	queryer := NewSingleRequestQueryer("someURL").WithHTTPClient(&http.Client{
-		Transport: roundTripFunc(func(*http.Request) *http.Response {
-			w := httptest.NewRecorder()
-			fmt.Fprint(w, `
-				{
-					"data": {
-						"foo": "bar"
-					},
-					"errors": [
-						{"message": "baz"}
-					]
-				}
-			`)
-			return w.Result()
-		}),
-	})
+	queryer := NewSingleRequestQueryer("someURL").WithHTTPClient(testHTTPClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `
+			{
+				"data": {
+					"foo": "bar"
+				},
+				"errors": [
+					{"message": "baz"}
+				]
+			}
+		`)
+	})))
 	var result any
 	err := queryer.Query(context.Background(), &QueryInput{Query: "query { hello }"}, &result)
 	assert.Equal(t, map[string]any{
