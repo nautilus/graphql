@@ -52,6 +52,13 @@ func (q *MultiOpQueryer) WithMiddlewares(mwares []NetworkMiddleware) Queryer {
 	return q
 }
 
+// WithResponseMiddlewares lets the user assign response middlewares to the queryer. They run once per
+// bundled query, each with the context of that query and its own entry of the batched response.
+func (q *MultiOpQueryer) WithResponseMiddlewares(mwares []ResponseMiddleware) Queryer {
+	q.queryer.ResponseMiddlewares = mwares
+	return q
+}
+
 // WithHTTPClient lets the user configure the client to use when making network requests
 func (q *MultiOpQueryer) WithHTTPClient(client *http.Client) Queryer {
 	q.queryer.Client = client
@@ -70,6 +77,11 @@ func (q *MultiOpQueryer) Query(ctx context.Context, input *QueryInput, receiver 
 	unmarshaled, ok := result.(map[string]interface{})
 	if !ok {
 		return errors.New("Result from dataloader was not an object")
+	}
+
+	// let the response middlewares see the full response before we decode the data
+	if err := q.queryer.ApplyResponseMiddlewares(ctx, unmarshaled); err != nil {
+		return err
 	}
 
 	// format the result as needed

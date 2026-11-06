@@ -59,6 +59,17 @@ type QueryerWithMiddlewares interface {
 	WithMiddlewares(wares []NetworkMiddleware) Queryer
 }
 
+// ResponseMiddleware are functions that can be passed to a queryer's WithResponseMiddlewares to inspect the
+// parsed response of every query before its data is decoded into the receiver. The response is the full
+// top-level object ("data", "errors", "extensions", ...) as returned by the remote service. Returning an
+// error aborts the query with that error.
+type ResponseMiddleware func(ctx context.Context, response map[string]interface{}) error
+
+// QueryerWithResponseMiddlewares is an interface for queryers that support response middlewares
+type QueryerWithResponseMiddlewares interface {
+	WithResponseMiddlewares(wares []ResponseMiddleware) Queryer
+}
+
 // HTTPQueryer is an interface for queryers that let you configure an underlying http.Client
 type HTTPQueryer interface {
 	WithHTTPClient(client *http.Client) Queryer
@@ -102,9 +113,20 @@ func (q QueryerFunc) Query(ctx context.Context, input *QueryInput, receiver inte
 }
 
 type NetworkQueryer struct {
-	URL         string
-	Middlewares []NetworkMiddleware
-	Client      *http.Client
+	URL                 string
+	Middlewares         []NetworkMiddleware
+	ResponseMiddlewares []ResponseMiddleware
+	Client              *http.Client
+}
+
+// ApplyResponseMiddlewares runs every response middleware against the parsed response and returns the first error
+func (q *NetworkQueryer) ApplyResponseMiddlewares(ctx context.Context, response map[string]interface{}) error {
+	for _, mware := range q.ResponseMiddlewares {
+		if err := mware(ctx, response); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // SendQuery is responsible for sending the provided payload to the desingated URL
