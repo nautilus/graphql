@@ -72,20 +72,37 @@ func (q *MultiOpQueryer) Query(ctx context.Context, input *QueryInput, receiver 
 		return errors.New("Result from dataloader was not an object")
 	}
 
-	// format the result as needed
-	// assign the result under the data key to the receiver
+	var queryResult QueryResult
 	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
 		TagName: "json",
-		Result:  receiver,
+		Result:  &queryResult,
 	})
 	if err != nil {
 		return err
 	}
-	if err := decoder.Decode(unmarshaled["data"]); err != nil {
+	if err := decoder.Decode(unmarshaled); err != nil {
 		return err
 	}
 
-	return q.queryer.ExtractErrors(unmarshaled)
+	switch receiver := receiver.(type) {
+	case *QueryResult:
+		*receiver = queryResult
+		return queryResult.extractErrors()
+	default:
+		// format the result as needed
+		// assign the result under the data key to the receiver
+		decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
+			TagName: "json",
+			Result:  receiver,
+		})
+		if err != nil {
+			return err
+		}
+		if err := decoder.Decode(queryResult.Data); err != nil {
+			return err
+		}
+		return queryResult.extractErrors()
+	}
 }
 
 func (q *MultiOpQueryer) loadQuery(ctx context.Context, keys dataloader.Keys) []*dataloader.Result {
