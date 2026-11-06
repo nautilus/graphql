@@ -94,24 +94,68 @@ func TestMultiOpQueryer_batchesRequests(t *testing.T) {
 
 func TestMultiOpQueryer_partial_success(t *testing.T) {
 	t.Parallel()
-	queryer := NewMultiOpQueryer("someURL", 1*time.Millisecond, 10).WithHTTPClient(testHTTPClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, `
-			[
-				{
-					"data": {
-						"foo": "bar"
-					},
-					"errors": [
-						{"message": "baz"}
-					]
+	const responseBody = `
+		[
+			{
+				"data": {
+					"foo": "bar"
+				},
+				"errors": [
+					{"message": "baz"}
+				],
+				"extensions": {
+					"biff": "boo"
 				}
-			]
-		`)
-	})))
-	var result any
-	err := queryer.Query(context.Background(), &QueryInput{Query: "query { hello }"}, &result)
-	assert.Equal(t, map[string]any{
-		"foo": "bar",
-	}, result)
-	assert.EqualError(t, err, "baz")
+			}
+		]
+	`
+	for _, tc := range []struct {
+		description    string
+		result         any
+		expectResponse any
+	}{
+		{
+			description: "map response type",
+			result:      new(map[string]any),
+			expectResponse: &map[string]any{
+				"foo": "bar",
+			},
+		},
+		{
+			description: "unknown response type",
+			result: new(struct {
+				Foo string
+			}),
+			expectResponse: &struct {
+				Foo string
+			}{
+				Foo: "bar",
+			},
+		},
+		{
+			description: "QueryResult response type",
+			result:      new(QueryResult),
+			expectResponse: &QueryResult{
+				Data: map[string]any{
+					"foo": "bar",
+				},
+				Errors: new([]*Error{
+					{Message: "baz"},
+				}),
+				Extensions: map[string]any{
+					"biff": "boo",
+				},
+			},
+		},
+	} {
+		t.Run(tc.description, func(t *testing.T) {
+			t.Parallel()
+			queryer := NewMultiOpQueryer("someURL", 1*time.Millisecond, 10).WithHTTPClient(testHTTPClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				fmt.Fprint(w, responseBody)
+			})))
+			err := queryer.Query(context.Background(), &QueryInput{Query: "query { hello }"}, tc.result)
+			assert.Equal(t, tc.expectResponse, tc.result)
+			assert.EqualError(t, err, "baz")
+		})
+	}
 }
